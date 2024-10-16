@@ -1,0 +1,29 @@
+ioc_name: __IOC_NAME__
+description:  Temperature acquisition 
+
+entities:
+
+- type: icpdas.icp7215
+  NAME: ICPDAS001
+  IP: __SERVER__
+  TCPPORT: 502
+  P: __IOC_PREFIX__
+  R: "TEMP"
+
+- type: icpdas.icp7215temp
+  icpctrl: ICPDAS001
+  ID: __ID0__
+  DESC: "Temperature PT100 sensor"
+  REGOFFSET: 0
+  ASLO: 0.0183112
+  LOLO: 0
+  LOW: __LOW__
+  HIGH: __HIGH__
+  HIHI: 100
+  NELM: 10 ## history
+
+
+- type: epics.PostStartupCommand 
+  command: |
+          dbl
+          dbl("*") > __CONFIG_DIR__/pvlist.txt           ## dumps PV NAMES

@@ -1,0 +1,5 @@
+{
+    "func": "rndtemp",
+    "min": 10,
+    "max": 100
+}

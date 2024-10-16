@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{beamline}}-deploy
+  namespace: argocd
+  labels:
+      deploy: {{beamline}}
+spec:
+  project: default
+  source:
+    repoURL: '{{beamlinerepogit}}'
+    path: deploy
+    targetRevision: {{beamlinereporev}}
+    helm:
+      values: |
+          namespace: {{beamline}}
+          domain: "{{dnsnamespace}}"
+          ingressClassName: "{{ingressClassName}}"
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: {{beamline}}
+  syncPolicy:
+    automated:
+      prune: true  # Optional: Automatically remove resources not specified in Helm chart
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
+      - Prune=true

@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+ 
+        {
+            "name": "Python: epik8s-tools",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "epik8s_gen/epik8s_gen.py",
+            "console": "integratedTerminal",
+            // "python": "${workspaceFolder}/.venv/bin/python",
+            "args":["testbeamline","--beamlinerepogit","https://baltig.infn.it/epics-containers/epik8s-testbeamline.git",
+                    "--dnsnamespace","pldanteco101.lnf.infn.it",
+                    "--cagatewayip", "192.168.114.200",
+                    "--pvagatewayip","192.168.114.201"],
+            "justMyCode": true,
+            "env": {
+                
+            }
+        }
+
+
+    ]
+}
