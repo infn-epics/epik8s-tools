@@ -2,6 +2,8 @@ import yaml
 import os
 import shutil
 import jinja2
+from jinja2 import Environment, FileSystemLoader
+
 from collections import OrderedDict
 
 def render_template(template_path, context):
@@ -19,19 +21,18 @@ def load_values_yaml(fil,script_dir):
         values = yaml.safe_load(file)
     return values
 
-def replace_placeholders(values, replacements):
-    """Recursively replace placeholders in a nested dictionary."""
-    if isinstance(values, dict):
-        return {k: replace_placeholders(v, replacements) for k, v in values.items()}
-    elif isinstance(values, list):
-        return [replace_placeholders(i, replacements) for i in values]
-    elif isinstance(values, str):
-        # Replace {placeholders} in string
-        for placeholder, replacement in replacements.items():
-            values = values.replace(f"<{placeholder}>", replacement)
-        return values
-    else:
-        return values
+def generate_readme(yaml_data, dir, output_file):
+    """Render the Jinja2 template using YAML data and write to README.md."""
+    # Setup Jinja2 environment and load template
+    env = Environment(loader=FileSystemLoader(searchpath=dir))
+    template = env.get_template('README.md')
+    
+    # Render template with data from values.yaml
+    rendered_content = template.render(yaml_data)
+    
+    # Write the rendered content to README.md
+    with open(output_file, 'w') as f:
+        f.write(rendered_content)
 
 def create_directory_tree(project_name):
     print (f"* create {project_name} tree")
@@ -71,10 +72,8 @@ def copy_corresponding_directories(values, script_dir, project_name):
     Copy directories for iocs, services, and applications from script directory
     to the corresponding target directories.
     """
-    values_copy={}
-    values_copy['applications']=values['applications']
-    values_copy['iocs']=values['epicsConfiguration']['iocs']
-    values_copy['services']=values['epicsConfiguration']['services']
+    # values_copy={}
+    # values_copy['applications']=values['applications']
 
     directories = {
         "iocs": f"{project_name}/config/iocs",
@@ -83,8 +82,8 @@ def copy_corresponding_directories(values, script_dir, project_name):
     }
 
     for key, target_dir in directories.items():
-        if key in values_copy:
-            for entry in values_copy[key]:
+        if key in values:
+            for entry in values[key]:
                 dir=key
                 if isinstance(entry,str):
                     dir+="/"+entry
@@ -125,6 +124,14 @@ def main(project_name, replacements):
     values = yaml.safe_load(rendered_values)  # You may need to adapt this if the format is YAML
     #deploy_values = yaml.safe_load(rendered_deploy)  # You may need to adapt this if the format is YAML
 
+    # values_copy={}
+    # values_copy['applications']=values['applications']
+    # values_copy['iocs']=values['epicsConfiguration']['iocs']
+    # values_copy['services']=values['epicsConfiguration']['services']
+    
+    values['iocs']=values['epicsConfiguration']['iocs']
+    values['services']=values['epicsConfiguration']['services']
+
     # Copy corresponding directories for iocs, services, and applications
     copy_corresponding_directories(values, script_dir, project_name)
 
@@ -134,6 +141,7 @@ def main(project_name, replacements):
     # Create updated values.yaml file while preserving order
     create_values_yaml('values.yaml',rendered_values, f'{project_name}/deploy')
     create_values_yaml(replacements['beamline']+"-k8s-application.yaml",rendered_deploy, f'{project_name}/')
+    generate_readme(values, script_dir, f"{project_name}/README.md")
 
 
 if __name__ == "__main__":
@@ -184,7 +192,7 @@ if __name__ == "__main__":
         "iocstartip": args.iocstartip,
         "iociprange": args.iociprange,
         "cagatewayip": args.cagatewayip,
-        "pvgatewayip": args.pvagatewayip,
+        "pvagatewayip": args.pvagatewayip,
         "nfsserver": args.nfsserver,
         "nfsdirdata": args.nfsdirdata,
         "nfsdirautosave": args.nfsdirautosave,

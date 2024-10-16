@@ -11,6 +11,9 @@ setup(
         ],
     },
     install_requires=[
+        
+        'pyyaml','Jinja2'
+        
         # Add any external dependencies here
     ],
     author="Andrea Michelotti",
