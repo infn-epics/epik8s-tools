@@ -1,8 +1,9 @@
-# EPIK8s {{ beamline }}
+# EPIK8s Chart for {{ beamline }}
 
 **URL**: `{{ giturl }}`
 **REV**: `{{ gitrev }}`
 **NAMESPACE**: `{{ epik8namespace }}`
+
 
 ---
 
@@ -43,3 +44,6 @@
 {% for app in applications %}
 - **Application Name**: **`{{ app.name }}`**
 {% endfor %}
+
+## Phoebus Settings
+You can find phoebus settings for epik8s `{{ beamline }}` in **opi/settings.ini**

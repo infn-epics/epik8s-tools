@@ -37,12 +37,12 @@ def generate_readme(yaml_data, dir, output_file):
 def create_directory_tree(project_name):
     print (f"* create {project_name} tree")
     """Create the directory structure."""
-    os.makedirs(f'{project_name}/config/applications', exist_ok=True)
-    os.makedirs(f'{project_name}/config/cronjobs', exist_ok=True)
-    os.makedirs(f'{project_name}/config/iocs', exist_ok=True)
-    os.makedirs(f'{project_name}/config/services', exist_ok=True)
-    os.makedirs(f'{project_name}/deploy/templates', exist_ok=True)
-    os.makedirs(f'{project_name}/opi', exist_ok=True)
+    for dir in ["config/applications","config/cronjobs","config/iocs","config/services","deploy/templates","opi/ini","opi/common","opi/rf","opi/diag","opi/mag","opi/vac","opi/tim"]:
+        os.makedirs(f'{project_name}/{dir}', exist_ok=True)
+        with open(f'{project_name}/{dir}/.gitignore', 'a') as file:
+            pass
+    
+    
 
 def create_chart_yaml(project_name, output_dir):
     """Create Chart.yaml file."""
@@ -114,6 +114,9 @@ def main(project_name, replacements):
     # deploy_values = load_values_yaml('deploy.yaml',script_dir)
     rendered_deploy = render_template(script_dir+'deploy.yaml', replacements)
 
+    rendered_settings = render_template(script_dir+'settings.ini', replacements)
+    # rendered_epik8s = render_template(script_dir+'epik8s.yaml', replacements)
+
     # Replace placeholders with actual values from arguments
     # deploy_values = replace_placeholders(deploy_values, replacements)
     # Create the directory structure
@@ -140,6 +143,10 @@ def main(project_name, replacements):
 
     # Create updated values.yaml file while preserving order
     create_values_yaml('values.yaml',rendered_values, f'{project_name}/deploy')
+    create_values_yaml('settings.ini',rendered_settings, f'{project_name}/opi')
+    shutil.copy(script_dir+'epik8s.yaml', f'{project_name}/deploy/templates')
+
+
     create_values_yaml(replacements['beamline']+"-k8s-application.yaml",rendered_deploy, f'{project_name}/')
     generate_readme(values, script_dir, f"{project_name}/README.md")
 
@@ -153,7 +160,7 @@ if __name__ == "__main__":
     # Add command-line arguments for placeholder replacements
     parser.add_argument("--beamline", default=None, help="Beamline Name value")
     parser.add_argument("--namespace", default=None, help="Namespace for beamline")
-    parser.add_argument("--targetRevision", default="1.0.0", help="Target revision")
+    parser.add_argument("--targetRevision", default="devel", help="Target revision")
     parser.add_argument("--serviceAccount", default="default", help="Service account")
     parser.add_argument("--beamlinerepogit", required=True, help="Git beamline URL")
     parser.add_argument("--beamlinereporev", default="main", help="Git revision")

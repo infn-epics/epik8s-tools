@@ -83,22 +83,22 @@ epicsConfiguration:
       storage:
         lts:
           path: /storage/lts
-          size: 1000Gi
+          size: 10Gi
           claim: ""
           accessMode: ReadWriteOnce
         mts:
           path: /storage/mts
-          size: 100Gi
+          size: 10Gi
           claim: ""
           accessMode: ReadWriteOnce
         sts:
           path: /storage/sts
-          size: 10Gi
+          size: 5Gi
           claim: ""
           accessMode: ReadWriteOnce
         logs:
           path: /storage/logs
-          size: 50Gi
+          size: 5Gi
           claim: ""
           accessMode: ReadWriteOnce
       mysql:
@@ -150,7 +150,7 @@ epicsConfiguration:
         init: true
       dataVolume:
           claim:  ## an existing claim or empty will create a new one
-          size: 5Gi ## size of the claim
+          size: 1Gi ## size of the claim
           accessMode: ReadWriteOnce
       enable_ingress: true
       usegateway: true
@@ -312,6 +312,10 @@ epicsConfiguration:
       iocparam:
         - name: "__SERVER__"
           value: icpdastemp01.simulator.svc
+        - name: "__LOW__"
+          value: 10
+        - name: "__HIGH__"
+          value: 80
       
 cronjobs:
     - name: "chfeeder"

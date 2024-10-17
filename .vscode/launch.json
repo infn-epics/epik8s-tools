@@ -21,6 +21,24 @@
             "env": {
                 
             }
+        },
+        {
+            "name": "Python: epik8s-tools CAMERA01",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "epik8s_gen/epik8s_gen.py",
+            "console": "integratedTerminal",
+            // "python": "${workspaceFolder}/.venv/bin/python",
+            "args":["testbeamline","--beamlinerepogit","https://baltig.infn.it/epics-containers/epik8s-testbeamline.git",
+                    "--dnsnamespace","chaost-camera01.chaos.lnf.infn.it",
+                    "--targetRevision","devel",
+                    "--cagatewayip", "192.168.197.2",
+                    "--pvagatewayip","192.168.197.3"],
+            "justMyCode": true,
+            "env": {
+                        
+            }
         }
 
 
