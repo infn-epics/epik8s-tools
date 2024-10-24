@@ -179,20 +179,26 @@ entities:
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:TIFF1:FileTemplate","%s%s_%3.3d.tiff")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:FilePath", "__DATA_DIR__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:FileWriteMode",2)
-      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:FileName","camera_proc")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:FileName","__IOC_ROOT__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:AutoIncrement",1)
-
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF1:FileTemplate","%s%s_proc_%3.3d.tiff")
+
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF:FilePath", "__DATA_DIR__")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF:FileWriteMode",2)
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF:FileName","__IOC_ROOT__")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF:AutoIncrement",1)
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Proc1:TIFF:FileTemplate","%s%s_proc_%3.3d.tiff")
+
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FilePath", "__DATA_DIR__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FileWriteMode",2)
-      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FileName","camera_roi")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FileName","__IOC_ROOT__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:AutoIncrement",1)
-      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FileTemplate","%s%s_roi1_%3.3d.tiff")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Roi1:TIFF1:FileTemplate","%s%s_roi_%3.3d.tiff")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FilePath", "__DATA_DIR__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FileWriteMode",2)
-      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FileTemplate","%s%s_overlay1_%3.3d.tiff")
-      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FileName","camera_roi")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FileTemplate","%s%s_overlay_%3.3d.tiff")
+      dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:TIFF1:FileName","__IOC_ROOT__")
       dbpf("__IOC_PREFIX__:__IOC_ROOT__:Overlay1:EnableCallbacks","1")
-
+      < __IOC_TOP__/init.cmd
   - type: epics.EpicsCaMaxArrayBytes 
     max_bytes: 10000000

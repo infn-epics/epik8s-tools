@@ -8,12 +8,14 @@ serviceAccountName: {{serviceAccount}}
 giturl: {{beamlinerepogit}}
 gitrev: {{beamlinereporev}}
 {% if iocbaseip and  iocstartip %}
-baseIp: {{iocbaseip}} ## static IOC addresses
-startIp: {{iocstartip}} # 1
-ipRange: {{iociprange}} #65536  # /16 range (256 * 256)
+baseIp: {{iocbaseip}} ## enable static IOC address - CIDR i.e "10.152.183.0/24"
+startIp: {{iocstartip}} # 2
 {%else%}
 ## Static ioc IP disable: pay attention CAS/PVA bug require gateway to be restarted if a ioc restarts
 ## because if static ioc IP is disabled iocs may get different IPs each restart 
+## look for CIDR range of your cluster
+# baseIp: 10.152.183.0/24  ## CIDR
+# startIp: 2
 {% endif %}
 {% if openshift %}
 openshift: true
@@ -50,7 +52,6 @@ epicsConfiguration:
             requests:
               cpu: 400m
               memory: 500Mi
-      targetRevision: volume-template
 
     gateway:
       charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
@@ -159,9 +160,6 @@ epicsConfiguration:
         - bluesky
         - infn-ophyd-hal
   
-
-    
-
     pws: 
       loglevel: DEBUG
       charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
@@ -285,18 +283,15 @@ epicsConfiguration:
 
     mysql: 
       name: mysql
-      charturl: registry-1.docker.io/bitnamicharts
-      targetRevision: '9.21.1'
-      chart: mysql
-      auth:
+      charturl: https://baltig.infn.it/epics-containers/mysql-chart.git
+      targetRevision: 'main'
+      mysql:
           rootPassword: "arcappl"
           createDatabase: true
           database: "arcappl"
-          username: "arcappl"
-          password: "arcappl"
-      serviceAccount:
-        create: false
-        name: "default"
+          user: "arcappl"
+          userPassword: "arcappl"
+      autosync: true
   
   iocs:
     - name: "tempsim"
@@ -316,6 +311,44 @@ epicsConfiguration:
           value: 10
         - name: "__HIGH__"
           value: 80
+
+    - name: "cam-sim01"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocdir: "camera-sim"
+      autosync: true ## restart automatically on changes
+      devtype: cam
+      gitinit: true
+      devgroup: diag
+      iocprefix: "TST"
+      iocroot: "CAM01"
+      iocparam:
+        - name: "CAMERA_TYPE"
+          value: "Int8"
+        - name: "CAMERA_FTVL"
+          value: "UCHAR"
+        - name: "CAMERA_ELEMS"
+          value: "325546"
+        - name: "CAMERA_STATS_XSIZE"
+          value: "1024"
+        - name: "CAMERA_STATS_YSIZE"
+          value: "768"
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "Gain"
+          value: "255"
+        - name: "SimMode"
+          value: "Peaks"
+        - name: "PeakStartX"
+          value: "250"
+        - name: "PeakStartY"
+          value: "200"
+        - name: "PeakWidthX"
+          value: "70"
+        - name: "PeakWidthY"
+          value: "50"
+        - name: "PeakVariation"
+          value: "10"
       
 cronjobs:
     - name: "chfeeder"

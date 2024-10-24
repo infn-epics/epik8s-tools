@@ -160,13 +160,12 @@ if __name__ == "__main__":
     # Add command-line arguments for placeholder replacements
     parser.add_argument("--beamline", default=None, help="Beamline Name value")
     parser.add_argument("--namespace", default=None, help="Namespace for beamline")
-    parser.add_argument("--targetRevision", default="devel", help="Target revision")
+    parser.add_argument("--targetRevision", default="experimental", help="Target revision")
     parser.add_argument("--serviceAccount", default="default", help="Service account")
     parser.add_argument("--beamlinerepogit", required=True, help="Git beamline URL")
     parser.add_argument("--beamlinereporev", default="main", help="Git revision")
-    parser.add_argument("--iocbaseip", default=None, help="IOC base IP enable static ioc addressing")
-    parser.add_argument("--iocstartip", default=None, help="IOC start IP enable static ioc addressing")
-    parser.add_argument("--iociprange", default="65536", help="IOC IP range")
+    parser.add_argument("--iocbaseip", default=None, help="IOC enable static IP address provide CIDR: ie.: 10.152.183.0/24")
+    parser.add_argument("--iocstartip", default="2", help="IOC start IP enable static ioc addressing")
     parser.add_argument("--cagatewayip", default=None, help="Load balancer CA Gateway IP")
     parser.add_argument("--pvagatewayip", default=None, help="Load balancer PVA Gateway IP")
     parser.add_argument("--dnsnamespace", required=True, help="DNS/IP required for ingress definition")
@@ -197,7 +196,6 @@ if __name__ == "__main__":
         "beamlinereporev": args.beamlinereporev,
         "iocbaseip": args.iocbaseip,
         "iocstartip": args.iocstartip,
-        "iociprange": args.iociprange,
         "cagatewayip": args.cagatewayip,
         "pvagatewayip": args.pvagatewayip,
         "nfsserver": args.nfsserver,
