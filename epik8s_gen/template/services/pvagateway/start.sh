@@ -4,24 +4,28 @@ echo "Starting PVA Gateway ($name)"
 # -debug 1
 CLIENT_NAME="$name"
 #export EPICS_PVA_ADDR_LIST $EPICS_CA_ADDR_LIST
-# export EPICS_PVA_NAME_SERVERS=$EPICS_CA_ADDR_LIST
+export EPICS_PVA_NAME_SERVERS=$EPICS_PVA_ADDR_LIST
+export PVA_CONN_TIMEOUT=10  # Connection timeout in seconds
+export PVA_SEARCH_TIMEOUT=15  # Search response timeout in seconds
+export PVA_IDLE_TIMEOUT=35  # Idle timeout
 # Generate JSON content
 JSON_CONTENT=$(cat <<EOF
 {
     "version": 2,
     "clients":[
         {
-            "name":"pvas",
-            "addrlist": "$EPICS_CA_ADDR_LIST",
+            "name":"internal",
+            "addrlist": "$EPICS_PVA_NAME_SERVERS",
             "autoaddrlist":false
         }
+        
 
     ],
     "servers": [
 
         {
-            "name":"server192",
-            "clients":["pvas"],
+            "name":"localhost",
+            "clients":["internal"],
             "autoaddrlist":false,
             "statusprefix":"GW:STS:"
         }

@@ -1,4 +1,7 @@
 # setup.py
+# python3 setup.py sdist bdist_wheel
+# python3 -m twine upload dist/*
+
 from setuptools import setup, find_packages
 
 setup(
