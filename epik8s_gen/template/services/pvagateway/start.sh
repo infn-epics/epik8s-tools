@@ -3,7 +3,6 @@ name=`hostname`
 echo "Starting PVA Gateway ($name)"
 # -debug 1
 CLIENT_NAME="$name"
-#export EPICS_PVA_ADDR_LIST $EPICS_CA_ADDR_LIST
 export EPICS_PVA_NAME_SERVERS=$EPICS_PVA_ADDR_LIST
 export PVA_CONN_TIMEOUT=10  # Connection timeout in seconds
 export PVA_SEARCH_TIMEOUT=15  # Search response timeout in seconds

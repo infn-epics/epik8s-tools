@@ -1,0 +1,15 @@
+# Include all Python files
+include *.py
+
+# Include README and LICENSE files
+include README.md
+include LICENSE
+
+# Include all files in the templates directory
+recursive-include epik8s_gen/template *
+
+# Include all files in the data directory
+recursive-include epik8s_gen/data *
+
+# Exclude any .pyc files
+exclude *.pyc

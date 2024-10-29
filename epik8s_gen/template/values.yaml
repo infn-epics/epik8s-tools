@@ -1,5 +1,5 @@
 beamline: {{beamline}}
-namespace: {{beamline}}
+namespace: {{namespace}}
 epik8namespace: {{dnsnamespace}}
 ingressClassName: {{ingressClassName}} # OKD doesnt create route if set
 targetRevision: {{targetRevision}} ## chart default revision

@@ -1,5 +1,14 @@
-# epik8s_gen/__init__.py
+# __init__.py
 
-from .epik8s_gen import create_directory_tree, create_chart_yaml, create_values_yaml
+# Import primary functions for external use
+from .epik8s_gen import main, render_template, load_values_yaml, create_directory_tree,__version__
 
-__all__ = ['create_directory_tree', 'create_chart_yaml', 'create_values_yaml']
+__all__ = [
+    "main",
+    "render_template",
+    "load_values_yaml",
+    "create_directory_tree"
+]
+
+# Optional: Define package metadata
+__author__ = "Andrea Michelotti"
