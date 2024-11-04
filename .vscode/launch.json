@@ -6,17 +6,60 @@
     "configurations": [
  
         {
-            "name": "Python: epik8s-tools",
+            "name": "Python: epik8s-tools beamlinetest",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "epik8s_gen/epik8s_gen.py",
+            "program": "epik8s_tools/epik8s_gen.py",
             "console": "integratedTerminal",
             // "python": "${workspaceFolder}/.venv/bin/python",
             "args":["testbeamline","--beamlinerepogit","https://baltig.infn.it/epics-containers/epik8s-testbeamline.git",
                     "--dnsnamespace","pldanteco101.lnf.infn.it",
+                    "--iocbaseip", "10.10.0.0/24",
                     "--cagatewayip", "192.168.114.200",
-                    "--pvagatewayip","192.168.114.201"],
+                    "--pvagatewayip","192.168.114.201",
+                    "--vcams","10",
+                    "--vicpdas","4"],
+            "justMyCode": true,
+            "env": {
+                
+            }
+        },
+        {
+            "name": "Python: epik8s-tools EUAPS",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "epik8s_tools/epik8s_gen.py",
+            "console": "integratedTerminal",
+            // "python": "${workspaceFolder}/.venv/bin/python",
+            "args":["epik8s-euaps",
+                    "--beamline", "euaps",
+                    "--ingressclass", "haproxy",
+                    "--beamlinerepogit","https://baltig.infn.it/lnf-da-control/epik8s-euaps.git",
+                    "--dnsnamespace","apps.k8s-da.lnf.infn.it",
+                    "--iocbaseip", "10.96.0.0/12",
+                    "--cagatewayip", "10.10.6.109",
+                    "--pvagatewayip","10.10.6.110",
+                    "--vcams","10",
+                    "--token","6r-MzeKyVxfVnhPAxtpP",
+                    "--vicpdas","4"],
+            "justMyCode": true,
+            "env": {
+                
+            }
+        },
+        {
+            "name": "Python: OPIGEN EUAPS",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "epik8s_tools/opigen.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--yaml", "epik8s-euaps/deploy/values.yaml"
+                ],
             "justMyCode": true,
             "env": {
                 

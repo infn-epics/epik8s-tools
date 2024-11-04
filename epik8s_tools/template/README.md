@@ -1,8 +1,20 @@
 # EPIK8s Chart for {{ beamline }}
 
-**URL**: `{{ giturl }}`
-**REV**: `{{ gitrev }}`
-**NAMESPACE**: `{{ epik8namespace }}`
+**BEAMLINE**: `{{ beamline }}`
+
+**BEAMLINE URL**: `{{ giturl }}`
+
+**BEAMLINE REV**: `{{ gitrev }}`
+
+**Services DNS**: `{{ epik8namespace }}`
+
+**Namespace**: `{{ namespace }}`
+
+**EPIK8s charts default revision**: `{{targetRevision}}`
+
+**CA Gateway**: `{{cagatewayip}}`
+
+**PVA Gateway**: `{{pvagatewayip}}`
 
 
 ---
@@ -20,6 +32,15 @@
   {% if ioc.iocdir %}
   - **Template**: `{{ ioc.iocdir }}`
   {% endif %}
+  {% if ioc.opi %}
+    - **OPI**
+    - **url**: `{{ ioc.opi.url }}`
+    - **main**: `{{ ioc.opi.main }}`
+    - **macros**:
+{% for item in ioc.opi.macro %}
+      - **`{{ item.name }}`**={{ item.value }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 
 ---

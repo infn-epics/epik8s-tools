@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: 'https://baltig.infn.it/epics-containers/epik8-chart.git'
     path: .
-    targetRevision: HEAD
+    targetRevision: {{ .Values.targetRevision }}
     helm:
       values: |
           {{- toYaml .Values | nindent 12 }}

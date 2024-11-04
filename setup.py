@@ -13,12 +13,14 @@ setup(
 
     entry_points={
         'console_scripts': [
-        'epik8s-gen=epik8s_gen:main',
+        'epik8s-gen=epik8s_tools:main',
+        'epik8s-opigen=epik8s_tools:main_opigen',
+
         ],
     },
     install_requires=[
         
-        'pyyaml','Jinja2'
+        'pyyaml','Jinja2','phoebusgen'
         
         # Add any external dependencies here
     ],

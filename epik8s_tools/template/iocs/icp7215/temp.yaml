@@ -8,7 +8,7 @@ entities:
   IP: __SERVER__
   TCPPORT: 502
   P: __IOC_PREFIX__
-  R: "TEMP"
+  R: __IOC_ROOT__
 
 - type: icpdas.icp7215temp
   icpctrl: ICPDAS001

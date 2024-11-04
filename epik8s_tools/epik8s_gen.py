@@ -5,7 +5,9 @@ import jinja2
 from jinja2 import Environment, FileSystemLoader
 from collections import OrderedDict
 import argparse
-__version__ = "0.2.14"
+from datetime import datetime
+
+__version__ = "0.3.0"
 
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""
@@ -74,14 +76,19 @@ def copy_corresponding_directories(values, script_dir, project_name):
                     if 'iocdir' in entry:
                         dir += "/" + entry['iocdir']
                         entry = entry['iocdir']
+                    elif 'gitpath' in entry:
+                        dir += "/" + entry['gitpath']
+                        entry = entry['gitpath']
                     elif 'name' in entry:
                         dir += "/" + entry['name']
                         entry = entry['name']
                     
+                        
+                    
                 source_dir = os.path.join(script_dir, dir)
                 if os.path.isdir(source_dir):
                     shutil.copytree(source_dir, os.path.join(target_dir, entry), dirs_exist_ok=True)
-                    print(f"Copied directory {entry} to {target_dir}")
+                    #print(f"Copied directory {entry} to {target_dir}")
 
 def create_project(project_name, replacements):
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
@@ -93,6 +100,9 @@ def create_project(project_name, replacements):
     values = yaml.safe_load(rendered_values)
     values['iocs'] = values['epicsConfiguration']['iocs']
     values['services'] = values['epicsConfiguration']['services']
+    values['cagatewayip']=replacements['cagatewayip']
+    values['pvagatewayip']=replacements['pvagatewayip']
+
     copy_corresponding_directories(values, script_dir, project_name)
     create_chart_yaml(project_name, f'{project_name}/deploy')
     create_values_yaml('values.yaml', rendered_values, f'{project_name}/deploy')
@@ -102,7 +112,8 @@ def create_project(project_name, replacements):
     generate_readme(values, script_dir, f"{project_name}/README.md")
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate project structure and Helm charts")
+    parser = argparse.ArgumentParser(description="Generate project structure and Helm charts",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--version", action="store_true", help="Show the version and exit")  # Add this option
 
     parser.add_argument("project_name", nargs="?",help="Name of the project")
@@ -112,16 +123,35 @@ def main():
     parser.add_argument("--serviceAccount", default="default", help="Service account")
     parser.add_argument("--beamlinerepogit", help="Git beamline URL")
     parser.add_argument("--beamlinereporev", default="main", help="Git revision")
-    parser.add_argument("--iocbaseip", default=None, help="IOC enable static IP address provide CIDR: ie.: 10.152.183.0/24")
+    parser.add_argument("--iocbaseip", default=None, help="IOC enable static IP address provide K8S Service CIDR: ie.: 10.152.183.0/24 (microk8s), 10.96.0.0/12 (i.e k8s vanilla)")
     parser.add_argument("--iocstartip", default="2", help="IOC start IP enable static ioc addressing")
     parser.add_argument("--cagatewayip", default=None, help="Load balancer CA Gateway IP")
     parser.add_argument("--pvagatewayip", default=None, help="Load balancer PVA Gateway IP")
     parser.add_argument("--dnsnamespace", help="DNS/IP required for ingress definition")
+    parser.add_argument("--mysqlchart", action="store_true", help="use mysql custom chart, instead of bitnami (microk8s)")
+    parser.add_argument("--channelfinder", action="store_true", help="enable channelfinder and chfeeder")
+    parser.add_argument("--token", default="", help="GIT personal token, empty unautheticated")
+
+
+    parser.add_argument(
+    "--ingressclass", 
+    choices=["haproxy", "nginx", ""], 
+    default="", 
+    help="Ingress class name: haproxy, nginx, or empty for no ingress class"
+)
+
     parser.add_argument("--nfsserver", default=None, help="NFS Server")
     parser.add_argument("--nfsdirdata", default="/epik8s/data", help="NFS data partition")
     parser.add_argument("--nfsdirautosave", default="/epik8s/autosave", help="NFS autosave partition")
     parser.add_argument("--nfsdirconfig", default="/epik8s/config", help="NFS config partition")
-    parser.add_argument("--backend", default=None, help="Activate backend services")
+    parser.add_argument("--elasticsearch", default=None, help="Elastic Search server")
+    parser.add_argument("--mongodb", default=None, help="MongoDB server")
+    parser.add_argument("--kafka", default=None, help="Kafka server")
+    parser.add_argument("--vcams", default=1, type=int, help="Generate a number of simulated cams")
+    parser.add_argument("--vicpdas", default=1, type=int, help="Generate a number of simulated icpdas")
+
+
+
     parser.add_argument("--openshift", default=False, help="Activate openshift flag")
 
     args = parser.parse_args()
@@ -139,21 +169,35 @@ def main():
     
     if not args.cagatewayip:
         print("%% No cagatewayip provided your CA PVs cannot read outside the cluster")
-        return
+        
     
     if not args.pvagatewayip:
         print("%% No pvagatewayip provided your PVA PVs cannot read outside the cluster")
-        return
+        
     
     if not args.iocbaseip:
         print("%% No iocbaseip provided your IOC can change IPs, you probably must restart gateway each IOC restart")
-        return
+        
         
     if not args.beamline:
-        args.beamline = args.project_name
+        print(f"# No beamline provided")
+        return
+
+
     if not args.namespace:
         args.namespace = args.beamline
 
+
+    print(f"* Beamline: {args.beamline}")
+    print(f"* Namespace: {args.namespace}")
+    print(f"* Project: {args.project_name}")
+    print(f"* Beamline Repo: {args.beamlinerepogit} ({args.beamlinereporev})")
+    print(f"* Service DNS: {args.dnsnamespace}")
+    print(f"* EPIK8s charts default revision: {args.targetRevision}")
+    print(f"* CA Gateway: {args.cagatewayip}")
+    print(f"* PVA Gateway: {args.pvagatewayip}")
+    
+    print("\n")
     replacements = {
         "beamline": args.beamline,
         "namespace": args.namespace,
@@ -170,8 +214,22 @@ def main():
         "nfsdirdata": args.nfsdirdata,
         "nfsdirautosave": args.nfsdirautosave,
         "nfsdirconfig": args.nfsdirconfig,
-        "backend": args.backend,
-        "openshift": args.openshift
+        "kafka": args.kafka,
+        "elasticsearch": args.elasticsearch,
+        "mongodb": args.mongodb,
+        "ingressClassName": args.ingressclass,
+        "openshift": args.openshift,
+        "vcams": args.vcams,
+        "vicpdas": args.vicpdas,
+        "application": __name__,
+        "version": __version__,
+        "mysqlchart":args.mysqlchart,
+        "channelfinder":args.channelfinder,
+        "time": datetime.today().date(),
+        "token": args.token
+
+        
+        
     }
 
     create_project(args.project_name, replacements)
