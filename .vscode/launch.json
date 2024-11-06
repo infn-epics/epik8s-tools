@@ -30,9 +30,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "epik8s_tools/epik8s_gen.py",
+            "program": "${workspaceFolder}/.epik8s-tools/bin/epik8s-gen",
             "console": "integratedTerminal",
-            // "python": "${workspaceFolder}/.venv/bin/python",
+            "python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":["epik8s-euaps",
                     "--beamline", "euaps",
                     "--ingressclass", "haproxy",
@@ -54,11 +54,12 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "epik8s_tools/opigen.py",
+            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
-                    "--yaml", "epik8s-euaps/deploy/values.yaml"
+                    "--yaml", "epik8s-euaps/deploy/values.yaml",
+                    "--projectdir", "euaps-test-opi"
                 ],
             "justMyCode": true,
             "env": {

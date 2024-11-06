@@ -3,11 +3,11 @@
 # python3 -m twine upload dist/*
 
 from setuptools import setup, find_packages
-from epik8s_tools import __version__
+# from epik8s_tools.epik8s_version import __version__
 
 setup(
     name="epik8s-tools",
-    version=__version__,
+    version="0.3.3",
     packages=find_packages(),
     include_package_data=True,  # Ensure to include files from MANIFEST.in
 
