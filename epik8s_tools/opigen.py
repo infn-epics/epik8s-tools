@@ -2,9 +2,10 @@ import yaml
 import argparse
 import subprocess
 import os
-from epik8s_gen import render_template,create_values_yaml
+from epik8s_gen import render_template
 from phoebusgen import screen as screen
 from phoebusgen import widget as widget
+from .epik8s_version import __version__
 
 def main_opigen():
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
@@ -18,6 +19,8 @@ def main_opigen():
         required=True,
         help="Path to the EPIK8s YAML configuration file."
     )
+    parser.add_argument("--version", action="store_true", help="Show the version and exit")  # Add this option
+
     parser.add_argument(
         "--output",
         type=str,
@@ -49,6 +52,9 @@ def main_opigen():
         help="Height of the launcher screen (default: 1400)"
     )
     args = parser.parse_args()
+    if args.version:
+        print(f"epik8s-tools version {__version__}")
+        return
     parent_path = os.path.dirname(args.output) or "."  # Default to "." if no directory
 
     # Load YAML configuration

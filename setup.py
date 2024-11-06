@@ -3,7 +3,7 @@
 # python3 -m twine upload dist/*
 
 from setuptools import setup, find_packages
-from epik8s_gen import __version__
+from epik8s_tools import __version__
 
 setup(
     name="epik8s-tools",

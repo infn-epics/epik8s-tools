@@ -6,8 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 from collections import OrderedDict
 import argparse
 from datetime import datetime
-
-__version__ = "0.3.0"
+from .epik8s_version import __version__
 
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""
@@ -27,6 +26,14 @@ def generate_readme(yaml_data, dir, output_file):
     """Render the Jinja2 template using YAML data and write to README.md."""
     env = Environment(loader=FileSystemLoader(searchpath=dir))
     template = env.get_template('README.md')
+    for ioc in yaml_data['iocs']:
+        if 'opi' in ioc:
+            if 'macro' in ioc['opi']:
+                acc=""
+                for m in ioc['opi']['macro']:
+                    acc=m['name']+"="+m['value']+" "+acc
+                ioc['opi']['macroinfo']=acc
+   
     rendered_content = template.render(yaml_data)
     with open(output_file, 'w') as f:
         f.write(rendered_content)
@@ -102,6 +109,8 @@ def create_project(project_name, replacements):
     values['services'] = values['epicsConfiguration']['services']
     values['cagatewayip']=replacements['cagatewayip']
     values['pvagatewayip']=replacements['pvagatewayip']
+    values['version'] = replacements['version']
+    values['time'] = replacements['time']
 
     copy_corresponding_directories(values, script_dir, project_name)
     create_chart_yaml(project_name, f'{project_name}/deploy')
