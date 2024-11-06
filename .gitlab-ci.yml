@@ -14,7 +14,7 @@ beamline-gen:
   stage: beamline-gen
   script:
     - |
-      epik8s-get epik8s-euaps --beamline euaps --ingressclass haproxy \
+      epik8s-gen epik8s-euaps --beamline euaps --ingressclass haproxy \
       --beamlinerepogit https://baltig.infn.it/lnf-da-control/epik8s-euaps.git \
       --dnsnamespace apps.k8s-da.lnf.infn.it \
       --iocbaseip 10.96.0.0/12 \
@@ -25,7 +25,7 @@ beamline-gen:
       --vicpdas 4
 
     - |
-      epik8s-get testbeamline --ingressclass nginx \
+      epik8s-gen testbeamline --ingressclass nginx \
       --beamlinerepogit https://baltig.infn.it/epics-containers/epik8s-testbeamline.git \
       --iocbaseip 10.152.183.0/24 \
       --dnsnamespace chaost-camera01.chaos.lnf.infn.it \
