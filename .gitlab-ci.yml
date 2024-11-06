@@ -1,0 +1,62 @@
+image: baltig.infn.it:4567/epics-containers/epics-py-base
+
+stages:
+  - beamline-gen
+  - beamline-opi-gen
+
+before_script:
+  # Update pip to the latest version
+  - python3 -m pip install --upgrade pip
+  - pip install epik8s-tools
+  - export PATH=$PATH:$HOME/.local/bin
+
+beamline-gen:
+  stage: beamline-gen
+  script:
+    - |
+      epik8s-get epik8s-euaps --beamline euaps --ingressclass haproxy \
+      --beamlinerepogit https://baltig.infn.it/lnf-da-control/epik8s-euaps.git \
+      --dnsnamespace apps.k8s-da.lnf.infn.it \
+      --iocbaseip 10.96.0.0/12 \
+      --cagatewayip 10.10.6.109  \
+      --pvagatewayip 10.10.6.110 \
+      --vcams 10 \
+      --token token-fake \
+      --vicpdas 4
+
+    - |
+      epik8s-get testbeamline --ingressclass nginx \
+      --beamlinerepogit https://baltig.infn.it/epics-containers/epik8s-testbeamline.git \
+      --iocbaseip 10.152.183.0/24 \
+      --dnsnamespace chaost-camera01.chaos.lnf.infn.it \
+      --targetRevision experimental \
+      --cagatewayip 192.168.197.2 \
+      --pvagatewayip 192.168.197.3
+
+    # Create a tar.gz archive of the generated beamline directories
+    - tar czvf test-beamline.tar.gz epik8s-euaps testbeamline
+  artifacts:
+    paths:
+      - test-beamline.tar.gz
+    expire_in: 1 month
+
+beamline-opi-gen:
+  stage: beamline-opi-gen
+  dependencies:
+    - beamline-gen
+  script:
+    # Extract the test-beamline.tar.gz artifact
+    - tar xzvf test-beamline.tar.gz
+
+    # Run the opi generation command for each beamline configuration
+    - epik8s-opigen --yaml epik8s-euaps/deploy/values.yaml --projectdir euaps-opi
+    - epik8s-opigen --yaml testbeamline/deploy/values.yaml --projectdir testbeamline-opi
+
+    # Create tar.gz archives of the generated OPI directories
+    - tar czvf euaps-opi.tar.gz euaps-opi
+    - tar czvf testbeamline-opi.tar.gz testbeamline-opi
+  artifacts:
+    paths:
+      - euaps-opi.tar.gz
+      - testbeamline-opi.tar.gz
+    expire_in: 1 month
