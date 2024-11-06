@@ -25,7 +25,8 @@ beamline-gen:
       --vicpdas 4
 
     - |
-      epik8s-gen testbeamline --ingressclass nginx \
+      epik8s-gen testbeamline --beamline testbeamline \
+      --ingressclass nginx \
       --beamlinerepogit https://baltig.infn.it/epics-containers/epik8s-testbeamline.git \
       --iocbaseip 10.152.183.0/24 \
       --dnsnamespace chaost-camera01.chaos.lnf.infn.it \
