@@ -3,10 +3,10 @@ import argparse
 import subprocess
 import os
 import shutil  # For removing directories
-from epik8s_gen import render_template,create_values_yaml
+from epik8s_tools.epik8s_gen import render_template,create_values_yaml,generate_readme
 from phoebusgen import screen as screen
 from phoebusgen import widget as widget
-from epik8s_version import __version__
+from epik8s_tools.epik8s_version import __version__
 
 def main_opigen():
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
@@ -204,6 +204,7 @@ def main_opigen():
 
     create_values_yaml('settings.ini', rendered_settings, f'{project_dir}/')
     print(f"* created {project_dir}/settings.ini")
+    generate_readme(conf, script_dir, f"{project_dir}/README.md")
 
 if __name__ == "__main__":
     main_opigen()

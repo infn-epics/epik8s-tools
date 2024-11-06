@@ -6,10 +6,7 @@ include README.md
 include LICENSE
 
 # Include all files in the templates directory
-recursive-include epik8s_gen/template *
-
-# Include all files in the data directory
-recursive-include epik8s_gen/data *
+recursive-include epik8s_tools/template *
 
 # Exclude any .pyc files
 exclude *.pyc

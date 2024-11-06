@@ -6,7 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 from collections import OrderedDict
 import argparse
 from datetime import datetime
-from epik8s_version import __version__
+from .epik8s_version import __version__
 
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""
@@ -22,8 +22,17 @@ def load_values_yaml(fil, script_dir):
         values = yaml.safe_load(file)
     return values
 
-def generate_readme(yaml_data, dir, output_file):
+def generate_readme(values, dir, output_file):
     """Render the Jinja2 template using YAML data and write to README.md."""
+    yaml_data=values
+    yaml_data['iocs'] = values['epicsConfiguration']['iocs']
+    yaml_data['services'] = values['epicsConfiguration']['services']
+    if 'gateway' in yaml_data['services'] and 'loadbalancer' in yaml_data['services']['gateway']:
+        yaml_data['cagatewayip']=yaml_data['services']['gateway']['loadbalancer']
+    if 'pvagateway' in yaml_data['services'] and 'loadbalancer' in yaml_data['services']['pvagateway']:
+        yaml_data['pvagatewayip']=yaml_data['services']['pvagateway']['loadbalancer']
+    yaml_data['version'] = __version__
+    yaml_data['time'] = datetime.today().date()
     env = Environment(loader=FileSystemLoader(searchpath=dir))
     template = env.get_template('README.md')
     for ioc in yaml_data['iocs']:
