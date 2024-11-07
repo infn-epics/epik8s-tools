@@ -67,6 +67,23 @@
             }
         },
         {
+            "name": "Python: OPIGEN SPARC",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--yaml", "tests/sparc_values.yaml",
+                    "--projectdir", "sparc-test-opi"
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: epik8s-tools CAMERA01",
             "type": "python",
             "request": "launch",

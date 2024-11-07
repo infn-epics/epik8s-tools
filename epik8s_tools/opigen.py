@@ -63,11 +63,11 @@ def main_opigen():
 
     if not args.yaml:
         print(f"# must define a valid epik8s configuration yaml --yaml <configuration>")
-        return
+        return -1
     
     if not args.projectdir:
         print(f"# must define an output projectdir --projectdir <project output directory>")
-        return
+        return -2
     # Define the project directory to store all generated files
     project_dir = os.path.abspath(args.projectdir)
     if not os.path.exists(project_dir):

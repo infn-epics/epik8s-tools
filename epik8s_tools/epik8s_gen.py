@@ -180,10 +180,10 @@ def main():
 
     if not args.beamlinerepogit:
         print("# You must provide a valid beamlinerepogit")
-        return
+        return -1
     if not args.dnsnamespace:
         print("# You must provide a valid dnsnamespace")
-        return 
+        return -2
     
     if not args.cagatewayip:
         print("%% No cagatewayip provided your CA PVs cannot read outside the cluster")
@@ -199,7 +199,7 @@ def main():
         
     if not args.beamline:
         print(f"# No beamline provided")
-        return
+        return -3
 
 
     if not args.namespace:
