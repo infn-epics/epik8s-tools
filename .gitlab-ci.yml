@@ -54,14 +54,20 @@ beamline-opi-gen:
     # Run the opi generation command for each beamline configuration
     - epik8s-opigen --yaml epik8s-euaps/deploy/values.yaml --projectdir euaps-opi
     - epik8s-opigen --yaml testbeamline/deploy/values.yaml --projectdir testbeamline-opi
+    - epik8s-opigen --yaml tests/sparc_values.yaml --projectdir sparc-test-opi
+    - epik8s-opigen --yaml tests/btf_values.yaml --projectdir btf-test-opi
 
     # Create tar.gz archives of the generated OPI directories
     - tar czvf euaps-opi.tar.gz euaps-opi
     - tar czvf testbeamline-opi.tar.gz testbeamline-opi
+    - tar czvf sparc-test-opi.tar.gz sparc-test-opi
+    - tar czvf btf-test-opi.tar.gz btf-test-opi
   artifacts:
     paths:
       - euaps-opi.tar.gz
       - testbeamline-opi.tar.gz
+      - sparc-test-opi.tar.gz
+      - btf-test-opi.tar.gz
     expire_in: 1 month
 
 pypi-publish:

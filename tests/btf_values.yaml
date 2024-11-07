@@ -1,0 +1,418 @@
+beamline: BTF
+namespace: btf
+epik8namespace: "apps.okd-datest.lnf.infn.it"
+ingressClassName: # OKD doesnt create route if set
+targetRevision: "devel"
+serviceAccountName: "default"
+## starting point
+giturl: https://baltig.infn.it/lnf-da-control/epik8s-btf.git
+gitrev: master
+baseIp: "172.30"
+startIp: 1
+ipRange: 65536  # /16 range (256 * 256)
+
+openshift: true
+epicsConfiguration:
+  name: "epics-configuration" # name of existing configMap that set CA parameters
+  address_list: "193.206.82.124"
+    
+  max_array_bytes: "10000000"
+  services:
+    pvagateway:
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      image:
+        repository: baltig.infn.it:4567/epics-containers/docker-pva-gateway
+        tag: "latest"
+      ingress:
+        enabled: false
+      loadbalancer: 192.168.36.206
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      staticIp: true
+      resources:
+            limits:
+              cpu: 999m
+              memory: 2Gi
+            requests:
+              cpu: 400m
+              memory: 500Mi
+      targetRevision: volume-template
+
+    gateway:
+      name: "cagateway"
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      ingress:
+        enabled: false
+      loadbalancer: 192.168.36.203
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true
+      staticIp: true
+
+    archiver:
+      name: "archiver"
+      charturl: 'https://baltig.infn.it/epics-containers/epics-archiver-chart.git'
+
+      replicaCount: 1
+      serviceAccount:
+        create: false
+        name: "default"
+      storage:
+        lts:
+          path: /storage/lts
+          size: 100Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        mts:
+          path: /storage/mts
+          size: 100Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        sts:
+          path: /storage/sts
+          size: 10Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        logs:
+          path: /storage/logs
+          size: 50Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+      mysql:
+            host: mysql
+            dbname: arcappl
+            user: arcappl
+            pass: arcappl
+      enable_ingress: true
+      securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 1000
+      disable: false ## dont deploy
+
+    console: 
+        name: "console"
+        replicaCount: 1
+        charturl: https://baltig.infn.it/epics-containers/epics-console-chart.git
+        enable_ingress: true
+        gitpath: opi
+        gitRepoConfig:
+          url: https://baltig.infn.it/lnf-da-control/epik8s-btf.git
+          path: opi
+          branch: master
+        autosync: true
+          
+    notebook: 
+      name: "notebook"
+      charturl: 'https://baltig.infn.it/epics-containers/jupyter-control-notebook-chart.git'
+      replicaCount: 1
+      gitRepoConfig:
+        url: https://baltig.infn.it/lnf-da-control/ecs-jupyter-control.git
+        path: .
+        branch: main
+        init: true
+      dataVolume:
+          claim:  ## an existing claim or empty will create a new one
+          size: 5Gi ## size of the claim
+          accessMode: ReadWriteOnce
+      auto_security: true
+      enable_ingress: true
+      autosync: true
+
+    olog: 
+      name: "olog"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "olog"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "btf-ologAttachments"
+      disable: false ## 
+      
+    saveandrestore: 
+      name: "saveandrestore"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "saveandrestore"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "btf-ologAttachments"
+      disable: false ## 
+    
+    alarmserver: 
+      name: "alarmserver"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "alarmserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "btf-ologAttachments"
+      disable: false ##
+
+    channelfinder: 
+      name: "channelfinder"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/channelfinder-chart.git
+      auto_security: true
+      enable_ingress: true
+      mongodb: "btf-ologAttachments"
+      disable: false ## 
+
+    scanserver: 
+      name: "scanserver"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "scanserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "btf-ologAttachments"
+      disable: true ## 
+
+    mysql: 
+      name: mysql
+      charturl: registry-1.docker.io/bitnamicharts
+      targetRevision: '9.21.1'
+      chart: mysql
+      auth:
+          rootPassword: "arcappl"
+          createDatabase: true
+          database: "arcappl"
+          username: "arcappl"
+          password: "arcappl"
+      serviceAccount:
+        create: false
+        name: "default"
+      disable: false ## dont deploy
+
+  iocs:
+
+  - name: "mag-wrapper"
+    asset: "https://confluence.infn.it/display/TESTBEAM/SoftIOC+DEVIL+Wrapper"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "DAFNE"
+    start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+    gitinit: true
+
+  # - name: "btfdaq"
+  #   asset: "https://confluence.infn.it/display/TESTBEAM/SoftIOC+DEVIL+Wrapper"
+  #   charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+  #   image: baltig.infn.it:4567/epics-containers/epics-py-base
+  #   iocprefix: "BTF2"
+  #   iocdir: "btfimport"
+  #   iocparam:
+  #     - name: "__MEMECACHED_SERVER__"
+  #       value: "plbtfhactr001.lnf.infn.it"
+  #   start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+  #   gitinit: true
+
+  # - name: "camera"
+  #   asset: "https://confluence.infn.it/x/nYD8DQ"
+  #   charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+  #   host: "plbtfcosc001.lnf.infn.it"
+  #   user: "root"
+  #   workdir: "epik8s-deploy"
+  #   docker:
+  #     enable: true
+  #     image: baltig.infn.it:4567/epics-containers/infn-epics-ioc
+  #     # args: "-p 5064:5064/udp -p 5064:5064/tcp -p 5065:5065/udp -p 5065:5065/tcp -p 5075:5075/tcp  -p 5076:5076/udp -it -v .:/epics/ioc/config --network host"
+
+  - name: "cam01"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+    host: "plbtfcosc001.lnf.infn.it"
+    user: "root"
+    iocdir: "camera"
+    autosync: true ## restart automatically on changes
+
+    docker:
+      enable: true
+      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+    devtype: cam
+    devgroup: diag
+    iocprefix: "BTF"
+    iocroot: "CAM01"
+    iocparam:
+      - name: "CAMERA_ID"
+        value: "Basler-scA1400-30gm-22159334"
+      - name: "CAMERA_CLASS"
+        value: "Basler-scA1400-30gm"
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768"
+
+  - name: "cam02"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+    host: "plbtfcosc001.lnf.infn.it"
+    user: "root"
+    iocdir: "camera"
+    ca_server_port: 5164
+    pva_server_port: 5175
+    docker:
+      enable: true
+      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+    devtype: cam
+    devgroup: diag
+    iocprefix: "BTF"
+    iocroot: "CAM02"
+    autosync: true ## restart automatically on changes
+    iocparam:
+      - name: "CAMERA_ID"
+        value: "Basler-scA640-70gm-23665713"
+      - name: "CAMERA_CLASS"
+        value: "Basler-scA640-70gm"
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768"
+
+  - name: "cam-sim01"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    iocdir: "camera-sim"
+    autosync: true ## restart automatically on changes
+    devtype: cam
+    gitinit: true
+    devgroup: diag
+    iocprefix: "BTF"
+    iocroot: "CAMSIM"
+    iocparam:
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768"
+    
+    # autosync: true
+  - name: "orbit"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "BTF:ORBIT"
+    devtype: softioc
+    devgroup: diag
+    start: "/epics/ioc/config/start.sh"
+    gitinit: true
+    autosync: true ## restart automatically on changes
+    usegateway: false
+    disable: true ## dont deploy
+
+  - name: "tml-motor"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/infn-epics-ioc
+    iocprefix: "BTF:TML"
+    serial:
+      ip: 192.168.190.29
+      port: 4001
+      ptty: /var/tmp/ttyV0
+      baud: 9600
+    dataVolume:
+      accessMode: 'ReadWriteOnce' ## until not enabled shared
+      size: 8Mi
+    gitinit: true
+    autosync: false ## restart automatically on changes
+    
+  - name: "slowcontrol"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "BTF2:slow"
+    iocdir: "mem2epics"
+    iocparam:
+      - name: "__CONFIGURATION__"
+        value: "btfimport.json"
+      - name: "__MEMECACHED_SERVER__"
+        value: "plbtfhactr001.lnf.infn.it"
+    start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+    gitinit: true
+
+
+  - name: "daq"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "BTF2:daq"
+    iocdir: "mem2epics"
+    iocparam:
+      - name: "__CONFIGURATION__"
+        value: "btfimport_daq.json"
+      - name: "__MEMECACHED_SERVER__"
+        value: "plbtfhactr001.lnf.infn.it"
+    start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+    gitinit: true
+  
+      
+    devtype: softioc
+    devgroup: diag
+    start: "/epics/ioc/config/start.sh"
+    gitinit: true
+    autosync: true ## restart automatically on changes
+
+applications:
+   
+
+backend:
+  namespace: "backend"
+  mongo:
+    host: mongodb
+    port: 27017
+    user:
+    pwd:
+  elasticsearch:
+    host: elasticsearch
+    clusterName: elasticsearch
+    port: 9200
+  kafka:
+    host: kafka-headless
+    port: 9092
+
+nfsMounts:
+    - name: data
+      server: 192.168.197.157
+      path: /data_epik8s/btf/data
+      mountPath: /nfs/data
+      opt: "-o nolock"
+    - name: autosave
+      server: 192.168.197.157
+      path: /data_epik8s/btf/autosave
+      mountPath: /nfs/autosave
+      opt: "-o nolock"
+    - name: config
+      server: 192.168.197.157
+      path: /data_epik8s/btf/config
+      mountPath: /nfs/config
+      opt: "-o nolock"
+
+syncPolicy:
+    automated:
+      prune: true  # Optional: Automatically remove resources not specified in Helm chart
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
+      - Prune=true
+    

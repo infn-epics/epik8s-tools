@@ -1,61 +1,90 @@
-# Epik8s Project Generator
+# epik8s-tools
 
-**Version:** 0.2.14
-
-This script automates the creation of Kubernetes project structures and Helm charts for EPICS-based applications. It generates required configuration files, templates, and directory structures, along with a customized `README.md` for documenting the project.
+`epik8s-tools` is a Python-based toolset for automating project structure generation, Helm chart creation, and deployment for EPICS (Experimental Physics and Industrial Control System) applications in Kubernetes environments [*EPIK8s*](https://confluence.infn.it/x/AgDoDg). 
+Designed to simplify complex deployment configurations, this package includes a command-line interface for rendering templates based on YAML configurations, making it easy to manage beamline and IOC (Input/Output Controller) configurations with a consistent structure.
+A simple guide to bring up a k8s single node cluster (extensible) is [*microk8s*](https://confluence.infn.it/x/DYC2H).
 
 ## Features
-- Creates a project directory structure for managing EPICS applications in Kubernetes.
-- Generates `Chart.yaml`, `values.yaml`, and `README.md` files based on templates.
-- Copies IOC, application, and service configurations from templates based on user inputs.
-- Supports additional backend services and OpenShift.
 
-## Prerequisites
-- **Python 3.6 or greater +**
-- **PyYAML**: `pip install pyyaml`
-- **Jinja2**: `pip install jinja2`
+- **Project Structure Generation**: Automatically create directories and files needed for EPICS-based projects.
+- **Helm Chart Creation**: Generate Helm charts for Kubernetes deployments with custom values and templates.
+- **OPI Generation**: Configure OPI (Operator Interface) panels for each beamline, including macros and settings.
+- **Support for Ingress and Load Balancers**: Configurable settings for CA and PVA gateway IPs and ingress classes.
+- **Customizable Options**: Extensive CLI options to adapt configurations to specific project needs.
 
-## Usage
-Run the script using:
+## Installation
+
+Install `epik8s-tools` via pip:
+
 ```bash
-python epik8s-gen.py <project_name> --beamlinerepogit <git_url> --dnsnamespace <dns> [options]
+pip install epik8s-tools
 ```
 
+### CLI Options
 
-## Arguments
+| Option              | Description                                                                             |
+|---------------------|-----------------------------------------------------------------------------------------|
+| `--beamline`        | Name of the beamline to configure.                                                      |
+| `--namespace`       | Kubernetes namespace for the beamline deployment.                                       |
+| `--targetRevision`  | Target revision for Helm charts (default: `experimental`).                              |
+| `--serviceAccount`  | Service account for Kubernetes.                                                         |
+| `--beamlinerepogit` | Git URL of the beamline repository.                                                     |
+| `--beamlinereporev` | Git revision for the repository (default: `main`).                                      |
+| `--iocbaseip`       | Base IP range for IOCs (e.g., `10.96.0.0/12`).                                          |
+| `--iocstartip`      | Start IP within the IOC base range (default: `2`).                                      |
+| `--cagatewayip`     | IP for the CA gateway load balancer.                                                    |
+| `--pvagatewayip`    | IP for the PVA gateway load balancer.                                                   |
+| `--dnsnamespace`    | DNS/IP address for ingress configuration.                                               |
+| `--ingressclass`    | Specify ingress class (`haproxy`, `nginx`, or empty for no ingress class).              |
+| `--nfsserver`       | NFS server address.                                                                     |
+| `--nfsdirdata`      | NFS directory for data partition (default: `/epik8s/data`).                             |
+| `--nfsdirautosave`  | NFS directory for autosave partition (default: `/epik8s/autosave`).                     |
+| `--nfsdirconfig`    | NFS directory for config partition (default: `/epik8s/config`).                         |
+| `--elasticsearch`   | ElasticSearch server address.                                                           |
+| `--mongodb`         | MongoDB server address.                                                                 |
+| `--kafka`           | Kafka server address.                                                                   |
+| `--vcams`           | Number of simulated cameras to generate (default: `1`).                                 |
+| `--vicpdas`         | Number of simulated ICPDAS devices to generate (default: `1`).                          |
+| `--mysqlchart`      | Use custom MySQL chart instead of Bitnami (for microk8s).                               |
+| `--channelfinder`   | Enable ChannelFinder and feeder services.                                               |
+| `--openshift`       | Flag for enabling OpenShift support.                                                    |
+| `--token`           | Git personal token for repository access, if required.                                  |
+| `--version`         | Show version information and exit.                                                      |
 
-| Argument             | Type     | Default           | Required | Description                                                                                     |
-|----------------------|----------|-------------------|----------|-------------------------------------------------------------------------------------------------|
-| `project_name`       | String   | None              | Yes      | Name of the project.                                                                            |
-| `--beamline`         | String   | `project_name`    | No       | Beamline name. Defaults to the project name if not provided.                                    |
-| `--namespace`        | String   | `beamline`        | No       | Namespace for the beamline. Defaults to the beamline name if not provided.                      |
-| `--beamlinerepogit`  | String   | None              | Yes      | Git URL of the beamline repository.                                                             |
-| `--beamlinereporev`  | String   | `main`            | No       | Git revision to use (e.g., branch or tag).                                                      |
-| `--iocbaseip`        | CIDR     | None              | No       | Base IP for static IPs on IOCs. Format: `CIDR` (e.g., `10.152.183.0/24`).                      |
-| `--iocstartip`       | Integer  | `2`               | No       | Starting IP offset for IOC static IP addressing.                                               |
-| `--cagatewayip`      | IP       | None              | Yes      | Load balancer IP for Channel Access Gateway.                                                    |
-| `--pvagatewayip`     | IP       | None              | Yes      | Load balancer IP for PV Access Gateway.                                                         |
-| `--dnsnamespace`     | String   | None              | Yes      | DNS or IP for ingress definitions.                                                              |
-| `--targetRevision`   | String   | `experimental`    | No       | Target revision for the deployment.                                                             |
-| `--serviceAccount`   | String   | `default`         | No       | Service account name to use in Kubernetes.                                                      |
-| `--nfsserver`        | String   | None              | No       | NFS server IP or hostname for storage.                                                          |
-| `--nfsdirdata`       | Path     | `/epik8s/data`    | No       | Directory path on the NFS server for data storage.                                              |
-| `--nfsdirautosave`   | Path     | `/epik8s/autosave`| No       | Directory path on the NFS server for autosave files.                                            |
-| `--nfsdirconfig`     | Path     | `/epik8s/config`  | No       | Directory path on the NFS server for configuration files.                                       |
-| `--backend`          | Boolean  | None              | No       | Activates backend services if set.                                                              |
-| `--openshift`        | Boolean  | `False`           | No       | Activates OpenShift-specific configurations if set to `True`.                                   |
-| `--version`          | Flag     | None              | No       | Displays the version of the script and exits.                                                   |
-| `--help`             | Flag     | None              | No       | Displays help information about the script.                                                     |
+---
 
-### Argument Details
-- **project_name**: Primary argument; creates a Kubernetes project structure under this name.
-- **beamline & namespace**: Allow customization of Kubernetes names; defaults provide convenience.
-- **beamlinerepogit**: Required Git repository URL for the beamline’s source code.
-- **cagatewayip & pvagatewayip**: Define gateway IPs for Channel Access and PV Access, ensuring network access.
-- **NFS Directories**: Specify paths for persistent storage directories (data, autosave, config).
-- **backend & openshift**: Optional flags for additional service configurations and OpenShift compatibility.
+### Examples
 
-## Example
+#### Basic Beamline Generation
+
+Generate a new project structure for a beamline with the following command:
+
 ```bash
-epik8s-gen testbeamline --beamlinerepogit https://baltig.infn.it/epics-containers/epik8s-testbeamline.git --dnsnamespace "pldanteco101.lnf.infn.it --cagatewayip 192.168.114.200 --pvagatewayip 192.168.114.201 
+epik8s-tools my_project --beamline MyBeamline --iocbaseip 10.96.0.0/12 --beamlinerepogit https://github.com/beamline/repo.git
+```
+
+### Generating OPI Panels
+
+To generate OPI panels from YAML configuration files, you can use the `epik8s-opigen` tool. This tool reads a YAML file with OPI configurations and outputs the generated OPI files in the specified project directory.
+
+#### Example Command
+
+```bash
+epik8s-opigen --yaml deploy/values.yaml --projectdir opi-output
+```
+- **`--yaml`**: Path to the YAML configuration file (e.g., `deploy/values.yaml`).
+- **`--projectdir`**: Directory where the OPI files will be generated (e.g., `opi-output`).
+
+This command will generate the OPI panel files based on the configurations specified in the YAML file and save them in the specified output directory.
+
+---
+
+### Specifying CA and PVA Gateway IPs
+
+For projects that require external access to Channel Access (CA) and PV Access (PVA) gateways, you can specify the IP addresses for the respective load balancers using the `--cagatewayip` and `--pvagatewayip` options.
+
+#### Example Command
+
+```bash
+epik8s-tools my_project --beamline MyBeamline --cagatewayip 10.96.1.10 --pvagatewayip 10.96.1.11
 ```
