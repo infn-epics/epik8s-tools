@@ -48,7 +48,7 @@
     "mounts": [
         // Mount some useful local files from the user's home directory
         // By mounting the parent of the workspace we can work on multiple peer projects
-        "source=${localWorkspaceFolder}/../,target=/repos,type=bind",
+        "source=${localWorkspaceFolder}/../,target=/repos,type=bind"
        
     ]
 }

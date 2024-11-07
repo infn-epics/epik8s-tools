@@ -3,11 +3,13 @@ image: baltig.infn.it:4567/epics-containers/epics-py-base
 stages:
   - beamline-gen
   - beamline-opi-gen
+  - pypi-publish
+
 
 before_script:
   # Update pip to the latest version
   - python3 -m pip install --upgrade pip
-  - pip install epik8s-tools
+  - pip install .
   - export PATH=$PATH:$HOME/.local/bin
 
 beamline-gen:
@@ -61,3 +63,16 @@ beamline-opi-gen:
       - euaps-opi.tar.gz
       - testbeamline-opi.tar.gz
     expire_in: 1 month
+
+pypi-publish:
+  stage: pypi-publish
+  script:
+    - python3 -m pip install --upgrade build twine
+    # Build the package
+    - python3 -m build
+    # Publish to PyPI
+    - python3 -m twine upload dist/* -u $PYPI_USERNAME -p $PYPI_TOKEN
+  only:
+    - main  # Optional: Restrict this stage to specific branches
+  dependencies:
+    - beamline-opi-gen

@@ -183,7 +183,7 @@ def main():
         return
     if not args.dnsnamespace:
         print("# You must provide a valid dnsnamespace")
-        return
+        return 
     
     if not args.cagatewayip:
         print("%% No cagatewayip provided your CA PVs cannot read outside the cluster")
