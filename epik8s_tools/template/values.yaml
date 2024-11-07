@@ -1,0 +1,499 @@
+# created automatically epik8s-gen ({{version}}) at {{time}}
+beamline: {{beamline}}
+namespace: {{namespace}}
+epik8namespace: {{dnsnamespace}}
+ingressClassName: {{ingressClassName}} # OKD doesnt create route if set
+targetRevision: {{targetRevision}} ## chart default revision
+serviceAccountName: {{serviceAccount}}
+token: {{token}} ## personal (read) token for authenticated git access
+## starting point
+giturl: {{beamlinerepogit}}
+gitrev: {{beamlinereporev}}
+{% if iocbaseip and  iocstartip %}
+baseIp: {{iocbaseip}} ## enable static IOC address - CIDR i.e "10.152.183.0/24"
+startIp: {{iocstartip}} # 2
+{%else%}
+## Static ioc IP disable: pay attention CAS/PVA bug require gateway to be restarted if a ioc restarts
+## because if static ioc IP is disabled iocs may get different IPs each restart 
+## look for CIDR range of your cluster
+# baseIp: 10.152.183.0/24  ## CIDR
+# startIp: 2
+{% endif %}
+{% if openshift %}
+openshift: true
+{% else %}
+openshift: false
+{% endif %}
+epicsConfiguration:
+  name: "epics-configuration" # name of existing configMap that set CA parameters
+  address_list: "" ## modulator
+  max_array_bytes: "10000000"
+  # conn_tmo: 120
+  services:
+    pvagateway:
+      asset: "Gateway for PVA external connections"
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      image:
+        repository: baltig.infn.it:4567/epics-containers/docker-pva-gateway
+        tag: "latest"
+      ingress:
+        enabled: false
+      {%- if pvagatewayip %}
+      loadbalancer: {{ pvagatewayip }}
+      {%- endif %}
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      staticIp: true
+      resources:
+            limits:
+              cpu: 999m
+              memory: 2Gi
+            requests:
+              cpu: 400m
+              memory: 500Mi
+    gateway:
+      asset: "Gateway for CA external connections"
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      ingress:
+        enabled: false
+      {%- if cagatewayip %}
+      loadbalancer: {{ cagatewayip }}
+      {%- endif %}
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      staticIp: true
+      resources:
+            limits:
+              cpu: 999m
+              memory: 4Gi
+            requests:
+              cpu: 400m
+              memory: 1Gi
+    archiver:
+      asset: "Epics PV Archiver"
+      charturl: 'https://baltig.infn.it/epics-containers/epics-archiver-chart.git'
+      replicaCount: 1
+      serviceAccount:
+        create: false
+        name: {{serviceAccount}}
+      storage:
+        lts:
+          path: /storage/lts
+          size: 10Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        mts:
+          path: /storage/mts
+          size: 10Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        sts:
+          path: /storage/sts
+          size: 5Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        logs:
+          path: /storage/logs
+          size: 5Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+      mysql:
+            host: mysql
+            dbname: arcappl
+            user: arcappl
+            pass: arcappl
+      enable_ingress: true
+      securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 1000
+      resources:
+            limits:
+              cpu: 999m
+              memory: 6Gi
+            requests:
+              cpu: 100m
+              memory: 4Gi
+      autosync: true ## restart automatically on changes
+      usegateway: true
+    console:
+        asset: "Ubuntu WEB Console running Phoebus"
+        replicaCount: 1
+        charturl: https://baltig.infn.it/epics-containers/epics-console-chart.git
+        enable_ingress: true
+        gitpath: opi
+        resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 1000m
+              memory: 1Gi
+        gitRepoConfig:
+          url: https://baltig.infn.it/lnf-da-control/epik8-sparc.git
+          path: opi
+          branch: master
+        autosync: true ## restart automatically on changes
+        usegateway: true
+    notebook:
+      asset: "Jupyther notebook enabled to access EPIK8s resources"
+      charturl: 'https://baltig.infn.it/epics-containers/jupyter-control-notebook-chart.git'
+      replicaCount: 1
+      gitRepoConfig:
+        url: https://baltig.infn.it/lnf-da-control/ecs-jupyter-control.git
+        path: .
+        branch: main
+        init: true
+      dataVolume:
+          claim:  ## an existing claim or empty will create a new one
+          size: 1Gi ## size of the claim
+          accessMode: ReadWriteOnce
+      enable_ingress: true
+      usegateway: true
+      autosync: true ## restart automatically on changes
+      pip:
+        - bluesky
+        - infn-ophyd-hal
+    pws:
+      asset: "Phoebus WEB (experimental)"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "pvws"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+    dbwr:
+      asset: "PV REST server (experimental)"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "dbwr"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+      gitRepoConfig:
+          url: https://baltig.infn.it/lnf-da-control/sparc-epics-opi.git
+          path: .
+      pvws:
+        host: sparc-pws.apps.okd-datest.lnf.infn.it
+        port: 80
+    
+{% if mongodb and elasticsearch %}
+    olog:
+      asset: "OLOG Phoebus Logbook"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "olog"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-ologAttachments"
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+
+    saveandrestore:
+      asset: "Save and Restore service"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "saveandrestore"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-saveandrestore"
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "DEBUG"
+    alarmserver: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "alarmserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-ologAttachments"
+      # alarm:
+      #  config: "Accelerator,AcceleratorCommand,AcceleratorTalk"
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      usegateway: true
+  
+  {% if channelfinder %}
+    channelfinder:
+      asset: "Search PV service"
+      autosync: true ## restart automatically on changes
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/channelfinder-chart.git
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-channelfinder"
+      aa:
+        urls: "{'default': 'http://sparc-archiver.apps.okd-datest.lnf.infn.it'}"
+        default_alias: default
+        enabled: true
+        pva: false
+        archive_property_name: archive
+        archiver_property_name: archiver
+        auto_pause: pvStatus,archive
+  {% endif %}
+
+    scanserver: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "scanserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-ologAttachments"
+{% if kafka %}
+    alarmlogger: 
+      asset: "Alarm Logger Service"
+
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "alarmlogger"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "sparc-ologAttachments"
+      alarm:
+        config: "Accelerator"
+        topics: "Accelerato,ALARM,CONFIGS"
+      autosync: true ## restart automatically on changes
+
+    webalarm:
+      asset: "Alarm WEB Service"
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "webalarm"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+    {%- else %}
+    ## alarmserver services
+    ## require kafka, elasticsearch
+  {%- endif %}
+  {%- else %}
+   ## olog, scanserver,channelfinder, saverestore
+    ## require backend activated
+  {%- endif %}
+  {%- if mysqlchart %}
+    mysql:
+      asset: "Mysql Service primarly used for Epics Archiver"
+      name: mysql
+      charturl: https://baltig.infn.it/epics-containers/mysql-chart.git
+      targetRevision: 'main'
+      mysql:
+          rootPassword: "arcappl"
+          createDatabase: true
+          database: "arcappl"
+          user: "arcappl"
+          userPassword: "arcappl"
+      autosync: true
+  {%- else %}
+    mysql: 
+      asset: "Mysql(bitnami) Service primarly used for Epics Archiver"
+      name: mysql
+      charturl: registry-1.docker.io/bitnamicharts
+      targetRevision: '9.21.1'
+      chart: mysql
+      auth:
+          rootPassword: "arcappl"
+          createDatabase: true
+          database: "arcappl"
+          username: "arcappl"
+          password: "arcappl"
+      serviceAccount:
+        create: false
+        name: "default"
+  {%- endif %}
+  iocs:
+  {% for i in range(1, vicpdas + 1) %}
+
+    - name: "tempsim{{ "%02d" % i }}"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "TST"
+      iocroot: "ICP{{ "%02d" % i }}"
+      iocdir: "icp7215"
+      devtype: icpdas7215
+      devgroup: temp
+      autosync: true
+      gitinit: true
+      opi:
+        url: https://baltig.infn.it/infn-epics/icpdas-opi.git
+        main: icp7215.bob
+        macro:
+          - name: "P"
+            value: TST
+          - name: "R"
+            value: "ICP{{ "%02d" % i }}"
+      iocparam:
+        - name: "__SERVER__"
+          value: icpdasrtd{{ "%02d" % i }}.simulator-{{namespace}}.svc
+        - name: "__LOW__"
+          value: 10
+        - name: "__HIGH__"
+          value: 80
+        - name: "__ID0__"
+          value: TEMP
+
+  {% endfor %}
+{% for i in range(1, vcams + 1) %}
+    - name: "cam-sim{{ "%02d" % i }}"
+      asset: "Simulate a camera with beam X={{ 250 + (i - 1) * 25 }},Y={{ 200 + (i - 1) * 20 }} DX={{ 70 + (i - 1) * 7 }} DY={{ 50 + (i - 1) * 5 }}"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocdir: "camera-sim"
+      autosync: true ## restart automatically on changes
+      devtype: camera
+      pva: true
+      gitinit: true
+      devgroup: diag
+      opi:
+        url: https://baltig.infn.it/infn-epics/camera-opi.git
+        main: Camera_Main.bob
+        macro:
+          - name: "DEVICE"
+            value: TST
+          - name: "CAM"
+            value: "CAM{{ "%02d" % i }}"
+          
+      iocprefix: "TST"
+      iocroot: "CAM{{ "%02d" % i }}"
+      iocparam:
+        - name: "CAMERA_TYPE"
+          value: "Int8"
+        - name: "CAMERA_FTVL"
+          value: "UCHAR"
+        - name: "CAMERA_ELEMS"
+          value: "325546"
+        - name: "CAMERA_STATS_XSIZE"
+          value: "1024"
+        - name: "CAMERA_STATS_YSIZE"
+          value: "768"
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "Gain"
+          value: "255"
+        - name: "SimMode"
+          value: "Peaks"
+        - name: "PeakStartX"
+          value: "{{ 250 + (i - 1) * 25 }}"
+        - name: "PeakStartY"
+          value: "{{ 200 + (i - 1) * 20 }}"
+        - name: "PeakWidthX"
+          value: "{{ 70 + (i - 1) * 7 }}"
+        - name: "PeakWidthY"
+          value: "{{ 50 + (i - 1) * 5 }}"
+        - name: "PeakVariation"
+          value: "{{ 10 + (i - 1) * 1 }}"
+          value: "10"
+{% endfor %}    
+cronjobs:
+  {%- if channelfinder %}
+    - name: "chfeeder"
+      image: baltig.infn.it:4567/epics-containers/epics-py-base
+      schedule: "* */12 * * *" # every 5 min ## "0 */12 * * *" ## at 12
+      gitRepoApp:
+        url: "https://baltig.infn.it/infn-epics/channelfinder-service-feeder.git"
+        path: .
+        branch: main
+        token: {{token}}
+      gitinit: true
+  {%- endif %}
+      
+applications:
+  {% for i in range(1, vicpdas + 1) %}
+  
+    - name: "icpdasrtd{{ "%02d" % i }}"
+      asset: "simulate a modbus icpdas RTD icpdasrtd{{ "%02d" % i }}:502"
+      image:
+        repository: baltig.infn.it:4567/epics-containers/epics-py-base
+        tag: "latest"
+      namespace: simulator-{{namespace}}
+      gitRepoApp:
+        url: "https://baltig.infn.it/chaos-lnf-control/py-modbus-device-simulator.git"
+        path: .
+        branch: main
+        token: {{token}}
+      gitinit: true
+      gitpath: icpdasim ## configuration
+      exec: "pip install --user $USER -r /app/requirements.txt;python /app/modbusDeviceSimulator.py -p 5020 -d icpconet72xx -c /config/config.json"
+      service:
+        type: ClusterIP
+        ports:
+          - name: modbusport
+            port: 502
+            targetport: 5020
+            targetname: modbusport
+            protocol: TCP
+      securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+    {% endfor %}
+{% if mongodb or elasticsearch or kafka %}
+backend:
+  namespace: "backend"
+  {% if mongodb %}
+  mongo:
+    host: {{mongodb}}
+    port: 27017
+    user:
+    pwd:
+  {% endif %}
+  {%- if elasticsearch %}
+  elasticsearch:
+    host:  {{elasticsearch}}
+    clusterName: elasticsearch
+    port: 9200
+  {%- endif %} 
+  {%- if kafka %}
+  kafka:
+    host: {{kafka}}
+    port: 9092
+{%- endif %}  
+{%- endif %}
+syncPolicy:
+    automated:
+      prune: true  # Optional: Automatically remove resources not specified in Helm chart
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
+      - Prune=true
+
+{%- if nfsserver %}
+nfsMounts:
+    - name: data
+      server: {{nfsserver}}
+      path: {{nfsdirdata}}
+      mountPath: /nfs/data
+      opt: "-o nolock"
+    - name: autosave
+      server: {{nfsserver}}
+      path:  {{nfsdirautosave}}
+      mountPath: /nfs/autosave
+      opt: "-o nolock"
+    - name: config
+      server: {{nfsserver}}
+      path: {{nfsdirconfig}}
+      mountPath: /nfs/config
+      opt: "-o nolock"
+{% endif %}
