@@ -11,7 +11,7 @@ before_script:
   - python3 -m pip install --upgrade pip
   - pip install .
   - export PATH=$PATH:$HOME/.local/bin
-
+  - ls $HOME/.local/lib/python3.10/site-packages/epik8s_tools/template/
 beamline-gen:
   stage: beamline-gen
   script:
