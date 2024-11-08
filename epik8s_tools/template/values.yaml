@@ -404,7 +404,6 @@ epicsConfiguration:
           value: "{{ 50 + (i - 1) * 5 }}"
         - name: "PeakVariation"
           value: "{{ 10 + (i - 1) * 1 }}"
-          value: "10"
 {% endfor %}    
 cronjobs:
   {%- if channelfinder %}
