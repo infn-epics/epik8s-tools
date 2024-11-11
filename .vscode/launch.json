@@ -30,7 +30,7 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/.epik8s-tools/bin/epik8s-gen",
+            "program": "epik8s_tools/epik8s_gen.py",
             "console": "integratedTerminal",
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":["epik8s-euaps",

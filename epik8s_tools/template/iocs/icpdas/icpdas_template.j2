@@ -1,0 +1,30 @@
+ioc_name: {{iocname}}
+description:  ICPDAS TEMPLATE
+
+entities:
+
+- type: icpdas.{{devtype}}
+  NAME: ICPDAS001
+  IP: {{server}}
+  TCPPORT: 502
+  P: "{{iocprefix}}"
+  R: "{{iocroot}}"
+
+{%- for t in temp %}
+- type: icpdas.icp7215temp
+  icpctrl: ICPDAS001
+  ID: {{ t.name }}
+  DESC: "{{t.desc if t.desc is defined else "Temperature sensor" }}"
+  REGOFFSET: {{t.idx}}
+  ASLO: {{t.aslo if t.aslo is defined else 0.0183112}}
+  LOLO: {{ t.lolo if t.lolo is defined else -100 }}
+  LOW: {{ t.low if t.low is defined else 0 }}
+  HIGH: {{ t.high if t.high is defined else 80 }}
+  HIHI: {{ t.hihi if t.hihi is defined else 100 }}
+  NELM: 10 ## history
+{%- endfor %}
+
+- type: epics.PostStartupCommand 
+  command: |
+          dbl
+          dbl("*") > {{config_dir}}/pvlist.txt           ## dumps PV NAMES

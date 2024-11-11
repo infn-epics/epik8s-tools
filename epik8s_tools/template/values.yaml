@@ -331,8 +331,8 @@ epicsConfiguration:
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "TST"
       iocroot: "ICP{{ "%02d" % i }}"
-      iocdir: "icp7215"
-      devtype: icpdas7215
+      iocdir: "icpdas"
+      devtype: icp7215
       devgroup: temp
       autosync: true
       gitinit: true
@@ -345,23 +345,28 @@ epicsConfiguration:
           - name: "R"
             value: "ICP{{ "%02d" % i }}"
       iocparam:
-        - name: "__SERVER__"
-          value: icpdasrtd{{ "%02d" % i }}.simulator-{{namespace}}.svc
-        - name: "__LOW__"
-          value: 10
-        - name: "__HIGH__"
-          value: 80
-        - name: "__ID0__"
-          value: TEMP
+        - name: "server"
+          value: icpdasrtd01.simulator-euaps.svc
+      temp:
+      {%- for k in range(1, 7) %}
+        - name: "TEMP{{ "%02d" % k }}"
+          idx: {{k}}
+          high: 80
+          low: 10
+          lolo: 5
+          hihi: 90
+          aslo: 0.0183112
+          desc: "Sensor Temp {{k}}"
+      {%- endfor %}
 
   {% endfor %}
 {% for i in range(1, vcams + 1) %}
     - name: "cam-sim{{ "%02d" % i }}"
       asset: "Simulate a camera with beam X={{ 250 + (i - 1) * 25 }},Y={{ 200 + (i - 1) * 20 }} DX={{ 70 + (i - 1) * 7 }} DY={{ 50 + (i - 1) * 5 }}"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocdir: "camera-sim"
+      iocdir: "camera"
       autosync: true ## restart automatically on changes
-      devtype: camera
+      devtype: camerasim
       pva: true
       gitinit: true
       devgroup: diag

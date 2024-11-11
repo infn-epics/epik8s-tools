@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="epik8s-tools",
-    version="0.4.3",
+    version="0.4.4",
     packages=find_packages(),
     include_package_data=True,  # Ensure to include files from MANIFEST.in
 

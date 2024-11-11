@@ -1,0 +1,207 @@
+# yaml-language-server: $schema=../schemas/ibek.support.schema.json
+ioc_name: {{name}}
+description: Camera SIM model with plugins
+
+entities:
+  {%- if devtype == "camerasim" %}
+  - type: ADSimDetector.simDetector
+  {% else %}
+  - type: ADAravis.aravisCamera
+    ID: {{CAMERA_ID}}
+    CLASS: {{CAMERA_CLASS}}
+  {% endif %}
+    PORT: {{iocroot}}
+    P: "{{iocprefix}}:"
+    R: "{{iocroot}}:"
+
+    
+
+  - type: ADCore.NDROI
+    PORT: {{iocroot}}.ROI1
+    NDARRAY_PORT: {{iocroot}}
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Roi1:"
+    ENABLED: 1
+
+  - type: ADCore.NDProcess
+    PORT: {{iocroot}}.PROC
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Proc1:"
+    NDARRAY_PORT: {{iocroot}}.ROI1
+    ENABLED: 1
+
+  - type: ADCore.NDOverlay
+    PORT: {{iocroot}}.OVERLAY1
+    NDARRAY_PORT: {{iocroot}}
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Overlay1:"
+    NAME: "Reference"
+    NOverlays: 8
+    SHAPE: "3"
+    XPOS: ""
+    YPOS: ""
+    XCENT: ""
+    YCENT: ""
+    XSIZE: ""
+    YSIZE: ""
+    XWIDTH: ""
+    YWIDTH: ""
+    O: "1:"
+
+  # Want to have also high throuput PVA protocol
+  - type: ADCore.NDPvaPlugin
+    PORT: {{iocroot}}.PVA
+    PVNAME: "{{iocprefix}}:{{iocroot}}:PVA:OUTPUT"
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Pva1:"
+    NDARRAY_PORT: {{iocroot}}
+    ENABLED: 1
+  
+  - type: ADCore.NDPvaPlugin
+    PORT: {{iocroot}}.PVA2
+    PVNAME: "{{iocprefix}}:{{iocroot}}:PROC:OUTPUT"
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Proc1:Pva1:"
+    NDARRAY_PORT: {{iocroot}}.PROC
+    ENABLED: 1
+
+  
+  - type: ADCore.NDPvaPlugin
+    PORT: {{iocroot}}.PVA3
+    PVNAME: "{{iocprefix}}:{{iocroot}}:ROI1:OUTPUT"
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Roi1:Pva1:"
+    NDARRAY_PORT: {{iocroot}}.ROI1
+    ENABLED: 1
+
+  
+
+  - type: ADCore.NDStdArrays
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":image1:"
+    PORT: {{iocroot}}.NTD
+    NDARRAY_PORT: {{iocroot}}
+    TYPE: {{CAMERA_TYPE}}
+    FTVL: {{CAMERA_FTVL}}
+    NELEMENTS: {{CAMERA_ELEMS}}
+    ENABLED: 1
+
+  
+  - type: ADCore.NDPvaPlugin
+    PORT: {{iocroot}}.PVA4
+    PVNAME: "{{iocprefix}}:{{iocroot}}:OVERLAY1:OUTPUT"
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Overlay1:Pva1:"
+    NDARRAY_PORT: {{iocroot}}.OVERLAY1
+    ENABLED: 1
+
+  - type: ADCore.NDStdArrays
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":image2:"
+    PORT: {{iocroot}}.NTD2
+    NDARRAY_PORT: {{iocroot}}.PROC
+    TYPE: {{CAMERA_TYPE}}
+    FTVL: {{CAMERA_FTVL}}
+    NELEMENTS: {{CAMERA_ELEMS}}
+    ENABLED: 1
+
+  - type: ADCore.NDStats
+    PORT: {{iocroot}}.STATS
+    NDARRAY_PORT: {{iocroot}}
+    HIST_SIZE: 50
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Stats1:"
+    XSIZE: {{CAMERA_STATS_XSIZE}}
+    YSIZE: {{CAMERA_STATS_YSIZE}}
+    ENABLED: 1
+
+  - type: ADCore.NDStats
+    PORT: {{iocroot}}.STATS2
+    NDARRAY_PORT: {{iocroot}}.PROC
+    HIST_SIZE: 50
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Proc1:Stats1:"
+    XSIZE: {{CAMERA_STATS_XSIZE}}
+    YSIZE: {{CAMERA_STATS_YSIZE}}
+    ENABLED: 1
+  
+  - type: ADCore.NDStats
+    PORT: {{iocroot}}.STATS3
+    NDARRAY_PORT: {{iocroot}}.ROI1
+    HIST_SIZE: 50
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Roi1:Stats1:"
+    XSIZE: {{CAMERA_STATS_XSIZE}}
+    YSIZE: {{CAMERA_STATS_YSIZE}}
+    ENABLED: 1
+
+
+
+  - type: ADCore.NDFileTIFF
+    PORT: {{iocroot}}.TIFF
+    NDARRAY_PORT: {{iocroot}}
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":TIFF1:"
+    ENABLED: 1
+
+  - type: ADCore.NDFileTIFF
+    PORT: {{iocroot}}.TIFF2
+    NDARRAY_PORT: {{iocroot}}.PROC
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Proc1:TIFF1:"
+    ENABLED: 1
+
+  - type: ADCore.NDFileTIFF
+    PORT: {{iocroot}}.TIFF3
+    NDARRAY_PORT: {{iocroot}}.ROI1
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Roi1:TIFF1:"
+    ENABLED: 1
+
+  - type: ADCore.NDFileTIFF
+    PORT: {{iocroot}}.TIFF4
+    NDARRAY_PORT: {{iocroot}}.OVERLAY1
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Overlay1:TIFF1:"
+    ENABLED: 1
+
+  - type: epics.PostStartupCommand 
+    command: dbl              ## dumps PV NAMES
+
+  - type: epics.PostStartupCommand 
+    command: |
+      dbl("*") > {{data_config}}/pvlist.txt
+      dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FilePath", "{{data_dir}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileWriteMode",2)
+      dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileName","camera")
+      dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:AutoIncrement",1)
+
+      dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileTemplate","%s%s_%3.3d.tiff")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FilePath", "{{data_dir}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileWriteMode",2)
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileName","{{iocroot}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:AutoIncrement",1)
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileTemplate","%s%s_proc_%3.3d.tiff")
+
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FilePath", "{{data_dir}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileWriteMode",2)
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileName","{{iocroot}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:AutoIncrement",1)
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileTemplate","%s%s_proc_%3.3d.tiff")
+
+      dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FilePath", "{{data_dir}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FileWriteMode",2)
+      dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FileName","{{iocroot}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:AutoIncrement",1)
+      dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FileTemplate","%s%s_roi_%3.3d.tiff")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FilePath", "{{data_dir}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FileWriteMode",2)
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FileTemplate","%s%s_overlay_%3.3d.tiff")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FileName","{{iocroot}}")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:EnableCallbacks","1")
+      {%- for param in iocinit %}
+        dbpf("{{iocprefix}}:{{iocroot}}:{{param.name}}","{{param.value}}")
+      {%- endfor %}
+
+  - type: epics.EpicsCaMaxArrayBytes 
+    max_bytes: 10000000
