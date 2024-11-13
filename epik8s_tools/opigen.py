@@ -137,7 +137,10 @@ def main_opigen():
         if devgroup not in devgroups:
             devgroups[devgroup] = {}
             devgroups[devgroup][devtype] = []
-            
+        
+        if devtype not in devgroups[devgroup]:
+            devgroups[devgroup][devtype] = []
+          
         if 'opi' in device and 'url' in device['opi'] and 'main' in device['opi']:
             devgroups[devgroup][devtype].append(device)
 
