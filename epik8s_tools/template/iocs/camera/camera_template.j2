@@ -150,6 +150,13 @@ entities:
     P: "{{iocprefix}}:{{iocroot}}"
     R: ":Proc1:TIFF1:"
     ENABLED: 1
+  
+  - type: ADCore.NDFileTIFF
+    PORT: {{iocroot}}.TIFFREAD
+    NDARRAY_PORT: {{iocroot}}.ROI1
+    P: "{{iocprefix}}:{{iocroot}}"
+    R: ":Proc1:TIFF:"
+    ENABLED: 1
 
   - type: ADCore.NDFileTIFF
     PORT: {{iocroot}}.TIFF3
@@ -175,19 +182,21 @@ entities:
       dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileWriteMode",2)
       dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileName","camera")
       dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:AutoIncrement",1)
-
       dbpf("{{iocprefix}}:{{iocroot}}:TIFF1:FileTemplate","%s%s_%3.3d.tiff")
+
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FilePath", "{{data_dir}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileWriteMode",2)
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileName","{{iocroot}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:AutoIncrement",1)
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF1:FileTemplate","%s%s_proc_%3.3d.tiff")
 
+
+
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FilePath", "{{data_dir}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileWriteMode",2)
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileName","{{iocroot}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:AutoIncrement",1)
-      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileTemplate","%s%s_proc_%3.3d.tiff")
+      dbpf("{{iocprefix}}:{{iocroot}}:Proc1:TIFF:FileTemplate","%s%s_%3.3d.tiff")
 
       dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FilePath", "{{data_dir}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Roi1:TIFF1:FileWriteMode",2)
@@ -199,6 +208,17 @@ entities:
       dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FileTemplate","%s%s_overlay_%3.3d.tiff")
       dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:TIFF1:FileName","{{iocroot}}")
       dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:EnableCallbacks","1")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:Use","1")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:Shape","1")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:Red","255")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:Green","255")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:Blue","255")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:WidthX","2")
+      dbpf("{{iocprefix}}:{{iocroot}}:Overlay1:WidthY","2")
+
+
+
+
       {%- for param in iocinit %}
         dbpf("{{iocprefix}}:{{iocroot}}:{{param.name}}","{{param.value}}")
       {%- endfor %}
