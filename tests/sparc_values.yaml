@@ -669,7 +669,7 @@ epicsConfiguration:
       iocdir: "icp7215pt100"
       iocparam:
         - name: "__SERVER__"
-          value: ddcgicp006.lnf.infn.it
+          value: "ddcgicp006.lnf.infn.it"
         - name: "__ID0__"
           value: "TEST"
         - name: "__LOW__"
@@ -688,7 +688,7 @@ epicsConfiguration:
       iocdir: "icp7250"
       iocparam:
         - name: "__SERVER__"
-          value: ddcgicp12di6do002.lnf.infn.it
+          value: "ddcgicp12di6do002.lnf.infn.it"
       gitinit: true
       devtype: ai
       devgroup: diag
@@ -702,7 +702,7 @@ epicsConfiguration:
       iocroot: "ILLUM"
       iocparam:
         - name: "__SERVER__"
-          value: ddcgicp8r001.lnf.infn.it
+          value: "ddcgicp8r001.lnf.infn.it"
         
       gitinit: true
       devtype: ai
