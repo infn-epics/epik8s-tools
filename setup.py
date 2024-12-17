@@ -15,6 +15,8 @@ setup(
         'console_scripts': [
         'epik8s-gen=epik8s_tools:main',
         'epik8s-opigen=epik8s_tools:main_opigen',
+        'epik8s-compose=epik8s_tools:main_compose',
+
 
         ],
     },

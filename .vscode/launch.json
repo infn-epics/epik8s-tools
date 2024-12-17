@@ -4,6 +4,24 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "Python: COMPOSE ELI",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--config", "tests/eli_values.yaml",
+                    "--host-dir", "./tests/eli_config",
+                    "--output", "docker-compose-eli.yaml"
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
  
         {
             "name": "Python: epik8s-tools beamlinetest",

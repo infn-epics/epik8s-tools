@@ -9,7 +9,8 @@ entities:
   TCPPORT: 502
   P: "{{iocprefix}}"
   R: "{{iocroot}}"
-
+  
+{% if devtype == "icp7215" %}
 {%- for t in temp %}
 - type: icpdas.icp7215temp
   icpctrl: ICPDAS001
@@ -23,6 +24,7 @@ entities:
   HIHI: {{ t.hihi if t.hihi is defined else 100 }}
   NELM: 10 ## history
 {%- endfor %}
+{% endif %}
 
 - type: epics.PostStartupCommand 
   command: |
