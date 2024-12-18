@@ -3,31 +3,15 @@ import argparse
 import yaml
 from jinja2 import Template
 
-# Template for config.yaml
-CONFIG_TEMPLATE = """
-{{- if .nfsMounts }}
-{{- range .nfsMounts }}
-{{ .name | lower }}_dir: {{ .mountPath }}/{{ .iocname }}
-{{- end }}
-{{- else }}
-config_dir: {{ .iocConfig }}
-data_dir: {{ .dataVolume.hostPath }}
-autosave_dir: "/autosave"
-{{- end }}
-ioctop: {{ .iocConfig }}
-{{- range iocparam }}
-{{ .name }}: {{ .value }}
-{{- end }}
-{{ toYaml . | indent(4) }}
-"""
-CONFIG_TEMPLATE = """
-ioctop: {{name}}
-devtype: {{devtype}}
-ioctop: {{ name }}
-devtype: {{ devtype }}
-{% for param in iocparam %}
-{{ param.name }}: {{ param.value }}
-{% endfor %}
+
+
+# Templates for config and execution
+GATEWAY_EXEC = """
+#!/bin/sh
+mkdir -p /epics/ca-gateway/configure
+cp -r /mnt/* /epics/ca-gateway/configure
+sleep 10
+/mnt/start.sh
 """
 
 IOC_EXEC = """
@@ -43,11 +27,11 @@ echo "## failed tty {{ serial.ptty }} "
 exit 1
 fi
 {% endif %}
-
+mkdir /epics/ioc/config
+cp -r /mnt/* /epics/ioc/config/
 echo "=== configuration yaml ======="
-cat /epics/ioc/config/__docker__/config.yaml 
+cat /epics/ioc/config/__docker__/config.yaml
 echo "=============================="
-echo "* copy ioc config and replace any .j2 with rendered values"
 find /epics/ioc/config -name "*.j2" -exec sh -c 'jnjrender "$1" /epics/ioc/config/__docker__/config.yaml --output "${1%.j2}"' _ {} \;
 {% for mount in nfsMounts %}
 mkdir -p {{ mount.mountPath }}/{{ iocname }}
@@ -56,150 +40,179 @@ cp -r /epics/ioc/config/* {{ mount.mountPath }}/{{ iocname }}/
 {% endif %}
 {% endfor %}
 cd /epics/ioc/config
-ls -latr
 {% if start %}
 export PATH="$PATH:$PWD"
 chmod +x {{ start }}
 {{ start }}
+{% else %}
+/epics/ioc/start.sh
 {% endif %}
 """
 
 def parse_config(file_path):
-    """Parses a YAML configuration file."""
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
-def determine_mount_path(host_dir, what,service_name):
-    """Determines the directory to mount."""
-    fallback_dir = os.path.join(host_dir, what+'/'+service_name)
-
+def determine_mount_path(host_dir, what, service_name):
+    fallback_dir = os.path.join(host_dir, what, service_name)
     if os.path.isdir(fallback_dir):
         return fallback_dir
     else:
-        print(f"%% path {fallback_dir} does not exists")
-        
-    
+        print(f"%% path {fallback_dir} does not exist")
     return ""
 
-def render_config(str,service_config):
-    """Renders the config.yaml content using the Jinja2 template."""
-    template = Template(str)
+def render_config(template_str, service_config):
+    template = Template(template_str)
     return template.render(service_config)
 
-def write_config_file(directory, content,fname):
-    """Writes the generated config.yaml content to the specified directory."""
+def write_config_file(directory, content, fname):
     os.makedirs(directory, exist_ok=True)
     config_path = os.path.join(directory, fname)
     with open(config_path, 'w') as file:
         file.write(content)
-        os.chmod(config_path, 0o755)  # rwxr-xr-x
+        os.chmod(config_path, 0o755)
 
-
-def generate_docker_compose_and_configs(config, host_dir):
-    """Generates docker-compose.yaml and config.yaml files."""
-    docker_compose = {
-        'services': {}
-    }
-    epics_config=config.get('epicsConfiguration')
-    epics_ca_addr_list=""
-    epics_pva_addr_list=""
+def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport):
+    docker_compose = {'services': {}}
+    epics_config = config.get('epicsConfiguration', {})
+    env_content = None
+    epics_ca_addr_list = ""
+    epics_pva_addr_list = ""
+    cadepend_list=[]
+    pvadepend_list=[]
+    # Generate env file
     for ioc in epics_config.get('iocs', []):
-        epics_ca_addr_list=f"{ioc['name']} {epics_ca_addr_list}"
+        if selected_services and ioc['name'] not in selected_services:
+            continue
+
+        epics_ca_addr_list += f"{ioc['name']} "
+        cadepend_list.append(ioc['name'])
         if 'pva' in ioc:
-            epics_pva_addr_list=f"{ioc['name']} {epics_pva_addr_list}"
-    
-    env_content=None  
+            epics_pva_addr_list += f"{ioc['name']} "
+            pvadepend_list.append(ioc['name'])
     if epics_ca_addr_list:
-        env_content=f"EPICS_CA_ADDR_LIST=\"{epics_ca_addr_list}\"\nEPICS_PVA_ADDR_LIST=\"{epics_pva_addr_list}\""
+        env_content = f"EPICS_CA_ADDR_LIST=\"{epics_ca_addr_list.strip()}\"\nEPICS_PVA_NAME_SERVERS=\"{epics_pva_addr_list.strip()}\"\nEPICS_PVA_ADDR_LIST=\"{epics_pva_addr_list.strip()}\""
+
+    # Process services
+    for service, service_val in epics_config.get('services', {}).items():
+        image=None
+        tag=None
+        if selected_services and service not in selected_services:
+            continue
+        if not 'image' in service_val:
+            if service == "gateway":
+                image = "baltig.infn.it:4567/epics-containers/docker-ca-gateway"
+            if service == "pvagateway":
+                image = "baltig.infn.it:4567/epics-containers/docker-pva-gateway" 
+        else:
+            image = service_val['image'].get('repository', service_val['image'])
+            if 'tag' in service_val['image']:
+                tag = service_val['image'].get('tag', 'latest')
+                
+        if not image:
+            print(f"%% service {service} skipped no image")
+            continue
+        if tag:
+            docker_compose['services'][service] = {'image': f"{image}:{tag}"}
+        else:
+            docker_compose['services'][service] = {'image': f"{image}"}
+            
+        if 'loadbalancer' in service_val:
+            if service == "gateway":
+                docker_compose['services'][service]['ports']=[f"{caport}:5064/tcp",f"{caport}:5064/udp",f"{caport+1}:5065/tcp",f"{caport+1}:5065/udp"]
+                caport =caport +2
+                docker_compose['services'][service]['depends_on']=cadepend_list
+
+            if service == "pvagateway":
+                docker_compose['services'][service]['ports']=[f"{pvaport}:5075/tcp",f"{pvaport+1}:5076/udp"]
+                pvaport =pvaport +2
+                docker_compose['services'][service]['depends_on']=pvadepend_list
+
+        if  'enable_ingress' in service_val and service_val['enable_ingress']:
+                if service == "archiver":
+                    docker_compose['services'][service]['ports']=[f"{ingressport}:17665"]
+                    ingressport=ingressport + 1
+
+        if env_content:
+            docker_compose['services'][service]['env_file'] = ["__docker__.env"]
+        mount_path = determine_mount_path(host_dir, 'services', service)
+        if mount_path:
+            docker_compose['services'][service]['volumes'] = [f"{mount_path}:/mnt"]
+            if os.path.isfile(mount_path+"/start.sh"):
+                if service == "gateway" or service=="pvagateway":
+                    write_config_file(f"{mount_path}/__docker__", GATEWAY_EXEC, "docker_run.sh")
+                    docker_compose['services'][service]['command'] = "sh -c /mnt/__docker__/docker_run.sh"
+                else:
+                    docker_compose['services'][service]['command'] = "sh -c /mnt/start.sh"
+
+        print(f"* added service {service}")
+
+    # Process IOCs
+    for ioc in epics_config.get('iocs', []):
+        if selected_services and ioc['name'] not in selected_services:
+            continue
+        image = ioc.get('image', 'baltig.infn.it:4567/epics-containers/infn-epics-ioc')
+        docker_compose['services'][ioc['name']] = {'image': image}
+        docker_compose['services'][ioc['name']]['ports']=["5064/tcp","5064/udp","5065/tcp","5065/udp","5075/tcp","5075/udp"]
+
+        if env_content:
+            docker_compose['services'][ioc['name']]['env_file'] = ["__docker__.env"]
+        mount_path = determine_mount_path(host_dir, 'iocs', ioc.get('iocdir', ioc['name']))
+        if mount_path:
+            docker_compose['services'][ioc['name']]['volumes'] = [f"{mount_path}:/mnt"]
+            docker_compose['services'][ioc['name']]['tty'] = True
+            docker_compose['services'][ioc['name']]['stdin_open'] = True
 
     
-    for service,service_val in epics_config.get('services', {}).items():
-        service_name = service
-        if 'image' in service_val:
-            image=""
-            if 'repository' in service_val['image']:
-                image=service_val['image']['repository']
-                if 'tag' in service_val['image']:
-                    image=image+":"+service_val['image']['tag']  
-            else: 
-                image = service_val['image']
-            # env_vars = service.get('environment', {})
-            docker_compose['services'][service_name] ={}
-            docker_compose['services'][service_name]['image']=f"{image}"
-            if env_content:
-                docker_compose['services'][service_name]['env_file']=["__docker__.env"]
-            
-            # Determine the mount path
-            mount_path = determine_mount_path(host_dir, 'services',service_name)
+            #config_content = render_config(CONFIG_TEMPLATE, ioc)
+            todump=ioc
+            if 'iocparam' in todump:
+                for k in todump['iocparam']:
+                    todump[k['name']]=k['value']
+                del todump['iocparam']  
+            config_content = yaml.dump(todump, default_flow_style=False)
 
-            # Add the service to the docker-compose structure
-            if mount_path:
-                docker_compose['services'][service_name]['volumes']=[f"{mount_path}:/service"]
-            print (f"* added service {service_name}")
+            write_config_file(f"{mount_path}/__docker__", config_content, "config.yaml")
+            exec_content = render_config(IOC_EXEC, ioc)
+            write_config_file(f"{mount_path}/__docker__", exec_content, "docker_run.sh")
+            docker_compose['services'][ioc['name']]['command'] = "sh -c /mnt/__docker__/docker_run.sh"
+        print(f"* added ioc {ioc['name']}")
 
-            # Generate config.yaml for the service
-            # config_content = render_config(service)
-            #write_config_file(mount_path, config_content)
-
-    for ioc in epics_config.get('iocs', []):
-        ioc_name = ioc['name']
-        if not 'image' in ioc:
-            if 'ioc-chart.git' in ioc['charturl']:
-                ioc['image']='baltig.infn.it:4567/epics-containers/infn-epics-ioc'
-            if 'ioc-launcher-chart.git' in ioc['charturl']:
-                continue ## dont handle embedded iocs
-        if 'image' in ioc:
-            image = ioc['image']
-            # env_vars = service.get('environment', {})
-            docker_compose['services'][ioc_name]= {}
-            docker_compose['services'][ioc_name]['image']=f"{image}"
-            if env_content:
-                docker_compose['services'][ioc_name]['env_file']=["__docker__.env"]
-            iocdir=ioc_name
-            if 'iocdir' in ioc:
-                iocdir=ioc['iocdir']
-            # Determine the mount path
-            mount_path = determine_mount_path(host_dir, 'iocs',iocdir)
-
-            # Add the service to the docker-compose structure
-            if mount_path:
-                docker_compose['services'][ioc_name]['volumes'] = [f"{mount_path}:/epics/ioc/config"]
-                # Generate config.yaml for the service
-                config_content = render_config(CONFIG_TEMPLATE,ioc)
-                write_config_file(mount_path+"/__docker__", config_content,"config.yaml")
-                exec_content = render_config(IOC_EXEC,ioc)
-                write_config_file(mount_path+"/__docker__", exec_content,"docker_run.sh")
-
-                docker_compose['services'][ioc_name]['command'] = f"/epics/ioc/config/__docker__/docker_run.sh"
-        print (f"* added ioc {ioc_name}")
     if env_content:
-        write_config_file(".", env_content,"__docker__.env")
+        write_config_file(".", env_content, "__docker__.env")
     return docker_compose
 
 def main():
+    caport=5064
+    pvaport=5075
+    ingressport=8090
     parser = argparse.ArgumentParser(description="Generate docker-compose.yaml and config.yaml for EPICS IOC.")
     parser.add_argument('--config', required=True, help="Path to the configuration file (YAML).")
     parser.add_argument('--host-dir', required=True, help="Base directory on the host.")
     parser.add_argument('--output', default='docker-compose.yaml', help="Output file for docker-compose.yaml.")
+    parser.add_argument('--services', nargs='+', help="List of services to include in the output.")
+    parser.add_argument('--caport', default=caport, help="Start CA access port to map on host")
+    parser.add_argument('--pvaport', default=pvaport, help="Start PVA port to map on host")
+    parser.add_argument('--htmlport', default=ingressport, help="Start ingress (http) port on host")
 
     args = parser.parse_args()
-
-    # Parse configuration file
     config = parse_config(args.config)
 
-    # Generate docker-compose.yaml and config.yaml
+    caport=args.caport
+    pvaport=args.pvaport
+    ingressport=args.htmlport
+    
     try:
-        docker_compose = generate_docker_compose_and_configs(config, args.host_dir)
+        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport)
     except FileNotFoundError as e:
         print(e)
         return
 
-    # Write docker-compose.yaml to output file
     with open(args.output, 'w') as output_file:
         yaml.dump(docker_compose, output_file, default_flow_style=False)
 
     print(f"Docker Compose file generated at '{args.output}'")
-    print("Config files generated for each service.")
+    print("Config files generated for each selected service.")
 
 if __name__ == "__main__":
     main()

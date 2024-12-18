@@ -2,8 +2,11 @@ import yaml
 import argparse
 import subprocess
 import os
+import ast
 import shutil  # For removing directories
 from epik8s_tools.epik8s_gen import render_template,create_values_yaml,generate_readme
+from jinja2 import Template
+
 from phoebusgen import screen as screen
 from phoebusgen import widget as widget
 from epik8s_tools.epik8s_version import __version__
@@ -89,10 +92,13 @@ def main_opigen():
     # Clone each unique OPI URL if it hasn’t been cloned already
     cloned_urls = set()
     for device in config:
-        if not 'opi' in device or not 'url' in device['opi']:
+        if not 'opi' in device or not 'url' in conf['opi'][device['opi']]:
             continue
         
-        opi_section = device.get('opi', {})
+        opidesc=conf['opi'][device['opi']]
+        templ = Template(str(opidesc))
+        opi_section=ast.literal_eval(templ.render(device))
+        device['opidesc']=opi_section
         opi_url = opi_section.get('url')
         clonedirfull = os.path.join(project_dir, args.clone_dir)
 
@@ -141,7 +147,7 @@ def main_opigen():
         if devtype not in devgroups[devgroup]:
             devgroups[devgroup][devtype] = []
           
-        if 'opi' in device and 'url' in device['opi'] and 'main' in device['opi']:
+        if 'opi' in device and 'url' in device['opidesc'] and 'main' in device['opidesc']:
             devgroups[devgroup][devtype].append(device)
 
     # Loop over each devgroup and create a tab for it
@@ -161,7 +167,7 @@ def main_opigen():
 
             for device in devgroups[devgroup][devtype]:
                 # Extract opi section and macros
-                opi_section = device.get('opi', {})
+                opi_section = device.get('opidesc', {})
                 main_bob = opi_section.get('main')
                 macros = opi_section.get('macro', [])
                 opi_url = opi_section.get('url')

@@ -336,14 +336,7 @@ epicsConfiguration:
       devgroup: temp
       autosync: true
       gitinit: true
-      opi:
-        url: https://baltig.infn.it/infn-epics/icpdas-opi.git
-        main: icp7215.bob
-        macro:
-          - name: "P"
-            value: TST
-          - name: "R"
-            value: "ICP{{ "%02d" % i }}"
+      opi: icpdas
       iocparam:
         - name: "server"
           value: icpdasrtd01.simulator-euaps.svc
@@ -370,15 +363,7 @@ epicsConfiguration:
       pva: true
       gitinit: true
       devgroup: diag
-      opi:
-        url: https://baltig.infn.it/infn-epics/camera-opi.git
-        main: Camera_Main.bob
-        macro:
-          - name: "DEVICE"
-            value: TST
-          - name: "CAM"
-            value: "CAM{{ "%02d" % i }}"
-          
+      opi: "camera"    
       iocprefix: "TST"
       iocroot: "CAM{{ "%02d" % i }}"
       iocparam:
@@ -409,7 +394,23 @@ epicsConfiguration:
           value: "{{ 50 + (i - 1) * 5 }}"
         - name: "PeakVariation"
           value: "{{ 10 + (i - 1) * 1 }}"
-{% endfor %}    
+{% endfor %}
+
+{% if vdip or vqua  or vcor %}
+    - name: "unimag"
+      asset: "https://confluence.infn.it/display/SCS/Magnet+SoftIOC+Devil+Wrapper"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/epics-py-base
+      iocprefix: "TST:MAG"
+      start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+      gitinit: true
+      devtype: unimag
+      devgroup: mag
+      iocdir: "unimag"
+      iocparam:
+        - name: "CONFIG"
+          value: "test.yaml"
+{% endif %}
 cronjobs:
   {%- if channelfinder %}
     - name: "chfeeder"
@@ -482,6 +483,37 @@ syncPolicy:
     syncOptions:
       - CreateNamespace=true 
       - Prune=true
+
+{% raw %}
+
+opi:
+  camera:
+    url: https://baltig.infn.it/infn-epics/camera-opi.git
+    main: Camera_Main.bob
+    macro:
+      - name: "DEVICE"
+        value: "{{iocprefix}}"
+      - name: "CAM"
+        value: "{{iocroot}}"
+  icpdas:
+    url: https://baltig.infn.it/infn-epics/icpdas-opi.git
+    main: "{{devtype}}.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "R"
+        value: "{{iocroot}}"
+  unimag:
+    url: https://baltig.infn.it/infn-epics/unimag.git
+    main: opi/unimag.bob
+    macro:
+      - name: "TITLE"
+        value: "{{beamline}}"
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "CONFFILE"
+        value: "{{iocconf}}"  
+{% endraw %}
 
 {%- if nfsserver %}
 nfsMounts:

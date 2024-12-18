@@ -1,8 +1,9 @@
 import yaml
 import os
+import ast
 import shutil
 import jinja2
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader,Template
 from collections import OrderedDict
 import argparse
 from datetime import datetime
@@ -36,12 +37,17 @@ def generate_readme(values, dir, output_file):
     env = Environment(loader=FileSystemLoader(searchpath=dir))
     template = env.get_template('README.md')
     for ioc in yaml_data['iocs']:
-        if 'opi' in ioc:
-            if 'macro' in ioc['opi']:
+        if 'opi' in ioc and ioc['opi'] in yaml_data['opi']:
+            opi=yaml_data['opi'][ioc['opi']]
+            temp = Template(str(opi))
+            rendered=ast.literal_eval(temp.render(ioc))
+            ioc['opinfo']=rendered
+            
+            if 'macro' in rendered:
                 acc=""
-                for m in ioc['opi']['macro']:
+                for m in rendered['macro']:
                     acc=m['name']+"="+m['value']+" "+acc
-                ioc['opi']['macroinfo']=acc
+                ioc['opinfo']['macroinfo']=acc
    
     rendered_content = template.render(yaml_data)
     with open(output_file, 'w') as f:
@@ -167,8 +173,13 @@ def main():
     parser.add_argument("--kafka", default=None, help="Kafka server")
     parser.add_argument("--vcams", default=1, type=int, help="Generate a number of simulated cams")
     parser.add_argument("--vicpdas", default=1, type=int, help="Generate a number of simulated icpdas")
-
-
+    parser.add_argument("--vquad", default=1, type=int, help="Generate a number of simulated quadrupoles")
+    parser.add_argument("--vcor", default=1, type=int, help="Generate a number of simulated correctors")
+    parser.add_argument("--vdip", default=1, type=int, help="Generate a number of simulated dipoles")
+    parser.add_argument("--vbpm", default=1, type=int, help="Generate a number of simulated bpms")
+    parser.add_argument("--vmot", default=1, type=int, help="Generate a number of simulated motors")
+    parser.add_argument("--vgac", default=1, type=int, help="Generate a number of simulated vacuum gauges")
+    parser.add_argument("--vvpc", default=1, type=int, help="Generate a number of simulated vacuum pumps")
 
     parser.add_argument("--openshift", default=False, help="Activate openshift flag")
 
@@ -239,6 +250,13 @@ def main():
         "openshift": args.openshift,
         "vcams": args.vcams,
         "vicpdas": args.vicpdas,
+        "vquad": args.vquad,
+        "vcor": args.vcor,
+        "vdip": args.vdip,
+        "vbpm": args.vbpm,
+        "vmot": args.vmot,
+        "vgac": args.vgac,
+        "vvpc": args.vvpc,
         "application": __name__,
         "version": __version__,
         "mysqlchart":args.mysqlchart,

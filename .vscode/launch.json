@@ -15,7 +15,27 @@
             "args":[
                     "--config", "tests/eli_values.yaml",
                     "--host-dir", "./tests/eli_config",
-                    "--output", "docker-compose-eli.yaml"
+                    "--output", "docker-compose-eli.yaml",
+                    "--pvaport","5175",
+                    "--services","gateway","pvagateway","cam-sim02"
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: OPIGEN ELI",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--yaml", "tests/eli_values.yaml",
+                    "--projectdir", "eli-test-opi"
                 ],
             "justMyCode": true,
             "env": {
@@ -44,7 +64,7 @@
             }
         },
         {
-            "name": "Python: epik8s-tools EUAPS",
+            "name": "Python: Beamline Test EUAPS",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
@@ -78,6 +98,25 @@
             "args":[
                     "--yaml", "epik8s-euaps/deploy/values.yaml",
                     "--projectdir", "euaps-test-opi"
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: COMPOSE EUAPS",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--config", "epik8s-euaps/deploy/values.yaml",
+                    "--host-dir", "./epik8s-euaps/config",
+                    "--output", "docker-compose-euaps.yaml",
+                    "--pvaport","5175"
                 ],
             "justMyCode": true,
             "env": {
