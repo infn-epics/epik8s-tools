@@ -182,7 +182,7 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         write_config_file(".", env_content, "__docker__.env")
     return docker_compose
 
-def main():
+def main_compose():
     caport=5064
     pvaport=5075
     ingressport=8090
@@ -215,4 +215,4 @@ def main():
     print("Config files generated for each selected service.")
 
 if __name__ == "__main__":
-    main()
+    main_compose()
