@@ -96,6 +96,10 @@ def main_opigen():
             continue
         
         opidesc=conf['opi'][device['opi']]
+        if 'iocparam' in device:
+            for p in device['iocparam']:
+                device[p['name']]=p['value']
+        device['beamline']=conf['beamline']         
         templ = Template(str(opidesc))
         opi_section=ast.literal_eval(templ.render(device))
         device['opidesc']=opi_section
