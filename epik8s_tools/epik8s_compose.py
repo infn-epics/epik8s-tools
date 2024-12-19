@@ -30,16 +30,16 @@ fi
 mkdir /epics/ioc/config
 cp -r /mnt/* /epics/ioc/config/
 echo "=== configuration yaml ======="
-cat /epics/ioc/config/__docker__/config.yaml
+cat /mnt/__docker__/{{name}}/config.yaml
 echo "=============================="
-find /epics/ioc/config -name "*.j2" -exec sh -c 'jnjrender "$1" /epics/ioc/config/__docker__/config.yaml --output "${1%.j2}"' _ {} \;
+cd /epics/ioc/config
+find . -name "*.j2" -exec sh -c 'jnjrender "$1" {{name}}/config.yaml --output "${1%.j2}"' _ {} \;
 {% for mount in nfsMounts %}
 mkdir -p {{ mount.mountPath }}/{{ iocname }}
 {% if mount.name == "config" %}
 cp -r /epics/ioc/config/* {{ mount.mountPath }}/{{ iocname }}/
 {% endif %}
 {% endfor %}
-cd /epics/ioc/config
 {% if start %}
 export PATH="$PATH:$PWD"
 chmod +x {{ start }}
@@ -72,10 +72,11 @@ def write_config_file(directory, content, fname):
         file.write(content)
         os.chmod(config_path, 0o755)
 
-def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport):
+def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport,exclude_services):
     docker_compose = {'services': {}}
     epics_config = config.get('epicsConfiguration', {})
     env_content = None
+    env_host_content=None
     epics_ca_addr_list = ""
     epics_pva_addr_list = ""
     cadepend_list=[]
@@ -84,7 +85,9 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
     for ioc in epics_config.get('iocs', []):
         if selected_services and ioc['name'] not in selected_services:
             continue
-
+        if exclude_services and ioc['name'] in exclude_services:
+            print(f"%% ioc {ioc['name']} excluded")
+            continue
         epics_ca_addr_list += f"{ioc['name']} "
         cadepend_list.append(ioc['name'])
         if 'pva' in ioc:
@@ -99,6 +102,10 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         tag=None
         if selected_services and service not in selected_services:
             continue
+        if exclude_services and service in exclude_services:
+            print(f"%% service {service} excluded")
+            continue
+        
         if not 'image' in service_val:
             if service == "gateway":
                 image = "baltig.infn.it:4567/epics-containers/docker-ca-gateway"
@@ -120,11 +127,13 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         if 'loadbalancer' in service_val:
             if service == "gateway":
                 docker_compose['services'][service]['ports']=[f"{caport}:5064/tcp",f"{caport}:5064/udp",f"{caport+1}:5065/tcp",f"{caport+1}:5065/udp"]
+                env_host_content = f"EPICS_CA_ADDR_LIST=localhost:{caport}\n"
                 caport =caport +2
                 docker_compose['services'][service]['depends_on']=cadepend_list
 
             if service == "pvagateway":
                 docker_compose['services'][service]['ports']=[f"{pvaport}:5075/tcp",f"{pvaport+1}:5076/udp"]
+                env_host_content = env_host_content + f"\nEPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
                 pvaport =pvaport +2
                 docker_compose['services'][service]['depends_on']=pvadepend_list
 
@@ -172,7 +181,7 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
                 del todump['iocparam']  
             config_content = yaml.dump(todump, default_flow_style=False)
 
-            write_config_file(f"{mount_path}/__docker__", config_content, "config.yaml")
+            write_config_file(f"{mount_path}/__docker__/{ioc['name']}", config_content, "config.yaml")
             exec_content = render_config(IOC_EXEC, ioc)
             write_config_file(f"{mount_path}/__docker__", exec_content, "docker_run.sh")
             docker_compose['services'][ioc['name']]['command'] = "sh -c /mnt/__docker__/docker_run.sh"
@@ -180,6 +189,8 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
 
     if env_content:
         write_config_file(".", env_content, "__docker__.env")
+        write_config_file(".", env_host_content, "epics-channel.env")
+
     return docker_compose
 
 def main_compose():
@@ -190,7 +201,9 @@ def main_compose():
     parser.add_argument('--config', required=True, help="Path to the configuration file (YAML).")
     parser.add_argument('--host-dir', required=True, help="Base directory on the host.")
     parser.add_argument('--output', default='docker-compose.yaml', help="Output file for docker-compose.yaml.")
-    parser.add_argument('--services', nargs='+', help="List of services to include in the output.")
+    parser.add_argument('--services', nargs='+', help="List of services to include in the output (default ALL).")
+    parser.add_argument('--exclude', nargs='+', help="List of services to exclude in the output")
+
     parser.add_argument('--caport', default=caport, help="Start CA access port to map on host")
     parser.add_argument('--pvaport', default=pvaport, help="Start PVA port to map on host")
     parser.add_argument('--htmlport', default=ingressport, help="Start ingress (http) port on host")
@@ -203,7 +216,7 @@ def main_compose():
     ingressport=args.htmlport
     
     try:
-        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport)
+        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport,args.exclude)
     except FileNotFoundError as e:
         print(e)
         return

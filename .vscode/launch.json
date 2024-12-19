@@ -17,7 +17,7 @@
                     "--host-dir", "./tests/eli_config",
                     "--output", "docker-compose-eli.yaml",
                     "--pvaport","5175",
-                    "--services","gateway","pvagateway","cam-sim02"
+                    "--exclude","archiver"
                     
                 ],
             "justMyCode": true,
