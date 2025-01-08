@@ -35,7 +35,8 @@
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
                     "--yaml", "tests/eli_values.yaml",
-                    "--projectdir", "eli-test-opi"
+                    "--projectdir", "eli-test-opi",
+                    "--controls","polrev-icpdas01","polrev-icpdas02"
                 ],
             "justMyCode": true,
             "env": {

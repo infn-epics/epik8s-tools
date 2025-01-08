@@ -33,7 +33,8 @@ echo "=== configuration yaml ======="
 cat /mnt/__docker__/{{name}}/config.yaml
 echo "=============================="
 cd /epics/ioc/config
-find . -name "*.j2" -exec sh -c 'jnjrender "$1" {{name}}/config.yaml --output "${1%.j2}"' _ {} \;
+find . -name "*.j2" -exec sh -c 'jnjrender "$1" __docker__/{{name}}/config.yaml --output "${1%.j2}"' _ {} \;
+cp -r /epics/ioc/config /mnt/__docker__/{{name}}/ ## copy the rendered files to the docker volume
 {% for mount in nfsMounts %}
 mkdir -p {{ mount.mountPath }}/{{ iocname }}
 {% if mount.name == "config" %}
@@ -127,13 +128,16 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         if 'loadbalancer' in service_val:
             if service == "gateway":
                 docker_compose['services'][service]['ports']=[f"{caport}:5064/tcp",f"{caport}:5064/udp",f"{caport+1}:5065/tcp",f"{caport+1}:5065/udp"]
-                env_host_content = f"EPICS_CA_ADDR_LIST=localhost:{caport}\n"
+                env_host_content = f"export EPICS_CA_ADDR_LIST=localhost:{caport}\n"
                 caport =caport +2
                 docker_compose['services'][service]['depends_on']=cadepend_list
 
             if service == "pvagateway":
                 docker_compose['services'][service]['ports']=[f"{pvaport}:5075/tcp",f"{pvaport+1}:5076/udp"]
-                env_host_content = env_host_content + f"\nEPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
+                if env_host_content:
+                    env_host_content = env_host_content + f"\nexport EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
+                else:
+                    env_host_content = f"\nexport EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
                 pvaport =pvaport +2
                 docker_compose['services'][service]['depends_on']=pvadepend_list
 
@@ -143,6 +147,7 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
                     ingressport=ingressport + 1
 
         if env_content:
+            
             docker_compose['services'][service]['env_file'] = ["__docker__.env"]
         mount_path = determine_mount_path(host_dir, 'services', service)
         if mount_path:
@@ -178,18 +183,26 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
             if 'iocparam' in todump:
                 for k in todump['iocparam']:
                     todump[k['name']]=k['value']
-                del todump['iocparam']  
+                del todump['iocparam']
+            todump['iocname']=ioc['name']   
             config_content = yaml.dump(todump, default_flow_style=False)
 
             write_config_file(f"{mount_path}/__docker__/{ioc['name']}", config_content, "config.yaml")
             exec_content = render_config(IOC_EXEC, ioc)
-            write_config_file(f"{mount_path}/__docker__", exec_content, "docker_run.sh")
-            docker_compose['services'][ioc['name']]['command'] = "sh -c /mnt/__docker__/docker_run.sh"
+            write_config_file(f"{mount_path}/__docker__/{ioc['name']}", exec_content, "docker_run.sh")
+            docker_compose['services'][ioc['name']]['command'] = f"sh -c /mnt/__docker__/{ioc['name']}/docker_run.sh"
         print(f"* added ioc {ioc['name']}")
 
     if env_content:
+        env_content=f"{env_content}\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
         write_config_file(".", env_content, "__docker__.env")
+   
+    if env_host_content:
+        env_host_content=f"{env_host_content}\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
+
         write_config_file(".", env_host_content, "epics-channel.env")
+    else:
+        print("%% no environment file generated, no services gateway services selected")
 
     return docker_compose
 

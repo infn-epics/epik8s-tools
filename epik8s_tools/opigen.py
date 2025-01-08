@@ -59,6 +59,9 @@ def main_opigen():
         default=1400,
         help="Height of the launcher screen (default: 1400)"
     )
+    
+    parser.add_argument('--controls', nargs='+', help="Include just the given controls (default ALL).")
+
     args = parser.parse_args()
     if args.version:
         print(f"epik8s-tools version {__version__}")
@@ -88,13 +91,15 @@ def main_opigen():
         print("%% iocs not present in configuration")
         return
     config = conf['epicsConfiguration']['iocs']
+    if 'opi' in device and not isinstance(device['opi'], str):
+        print(f"## opi field in device {device['name']} is not a string")
+        return
+    config = [device for device in config if 'opi' in device and 'url' in conf['opi'][device['opi']]]
+    config = [device for device in config if args.controls==None or device['name'] in args.controls]
 
     # Clone each unique OPI URL if it hasn’t been cloned already
     cloned_urls = set()
-    for device in config:
-        if not 'opi' in device or not 'url' in conf['opi'][device['opi']]:
-            continue
-        
+    for device in config:  
         opidesc=conf['opi'][device['opi']]
         if 'iocparam' in device:
             for p in device['iocparam']:
