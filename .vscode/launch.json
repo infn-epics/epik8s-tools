@@ -159,6 +159,23 @@
             }
         },
         {
+            "name": "Python: OPIGEN ELI",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--yaml", "tests/eli_values.yaml",
+                    "--projectdir", "eli-test-opi"
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: epik8s-tools CAMERA01",
             "type": "python",
             "request": "launch",
