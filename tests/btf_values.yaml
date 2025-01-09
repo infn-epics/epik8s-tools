@@ -2,19 +2,19 @@ beamline: BTF
 namespace: btf
 epik8namespace: "apps.okd-datest.lnf.infn.it"
 ingressClassName: # OKD doesnt create route if set
-targetRevision: "devel"
+targetRevision: "experimental"
+token: 6r-MzeKyVxfVnhPAxtpP
 serviceAccountName: "default"
 ## starting point
 giturl: https://baltig.infn.it/lnf-da-control/epik8s-btf.git
 gitrev: master
-baseIp: "172.30"
+baseIp: 172.30.0.0/16
 startIp: 1
-ipRange: 65536  # /16 range (256 * 256)
 
 openshift: true
 epicsConfiguration:
   name: "epics-configuration" # name of existing configMap that set CA parameters
-  address_list: "193.206.82.124"
+  address_list: "193.206.82.124 192.168.189.190 192.168.189.198"
     
   max_array_bytes: "10000000"
   services:
@@ -62,6 +62,13 @@ epicsConfiguration:
       serviceAccount:
         create: false
         name: "default"
+      resources:
+            limits:
+              cpu: 999m
+              memory: 5Gi
+            requests:
+              cpu: 100m
+              memory: 4Gi
       storage:
         lts:
           path: /storage/lts
@@ -106,10 +113,11 @@ epicsConfiguration:
           path: opi
           branch: master
         autosync: true
-          
+    
+
     notebook: 
       name: "notebook"
-      charturl: 'https://baltig.infn.it/epics-containers/jupyter-control-notebook-chart.git'
+      charturl: https://baltig.infn.it/epics-containers/jupyter-chart.git
       replicaCount: 1
       gitRepoConfig:
         url: https://baltig.infn.it/lnf-da-control/ecs-jupyter-control.git
@@ -122,7 +130,7 @@ epicsConfiguration:
           accessMode: ReadWriteOnce
       auto_security: true
       enable_ingress: true
-      autosync: true
+      autosync: false
 
     olog: 
       name: "olog"
@@ -132,8 +140,50 @@ epicsConfiguration:
       auto_security: true
       enable_ingress: true
       mongodb: "btf-ologAttachments"
-      disable: false ## 
+      disable: false ##
       
+      service:
+        loglevel: "DEBUG"
+      cors:
+        origins: "http://btf-webolog.apps.okd-datest.lnf.infn.it"
+      ldap:
+        enable: true
+        user:
+          dn:
+            pattern: "uid"
+        url: "ldap://ds.infn.it"
+        base:
+          dn: "ou=People,dc=infn,dc=it"
+    
+    webolog:
+      name: "webolog"
+      image:
+        repository: "baltig.infn.it:4567/epics-containers/phoebus-olog-web"
+        tag: "latest"
+        pullPolicy: "Always"
+      charturl: https://baltig.infn.it/epics-containers/generic-application-chart.git
+      enable_ingress: true
+        
+      disable: false ##
+      env:
+        - name: REACT_APP_LEVEL_VALUES
+          value: "[\"Urgent\",\"Suggestion\",\"Info\",\"Request\",\"Problem\"]"
+        - name: REACT_APP_DEFAULT_LEVEL
+          value: "Info"
+        - name: REACT_APP_BASE_URL
+          value: "http://btf-olog.apps.okd-datest.lnf.infn.it/Olog"
+      exec: ## use default
+      securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+      service:
+        ports:
+          - name: webolog
+            port: 80
+            targetport: 3000
+            targetname: webolog
+            protocol: TCP
+            
     saveandrestore: 
       name: "saveandrestore"
       loglevel: DEBUG
@@ -198,30 +248,41 @@ epicsConfiguration:
     iocprefix: "DAFNE"
     start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
     gitinit: true
+    devtype: dantemag
+    devgroup: mag
+    opi: "dantemag"
+        
+  - name: "unimag"
+    asset: "https://confluence.infn.it/display/TESTBEAM/SoftIOC+DEVIL+Wrapper"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "UNI:DAFNE:BTF"
+    start: "./start.sh" ## if your mynewioc has a start.sh this line must be kept
+    gitinit: true
+    devtype: unimag
+    devgroup: mag
+    iocdir: "unimag"
+    iocparam:
+      - name: "CONFIG"
+        value: "btfmagtest.yaml"
+    opi: "unimag"
+       
 
-  # - name: "btfdaq"
-  #   asset: "https://confluence.infn.it/display/TESTBEAM/SoftIOC+DEVIL+Wrapper"
-  #   charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-  #   image: baltig.infn.it:4567/epics-containers/epics-py-base
-  #   iocprefix: "BTF2"
-  #   iocdir: "btfimport"
-  #   iocparam:
-  #     - name: "__MEMECACHED_SERVER__"
-  #       value: "plbtfhactr001.lnf.infn.it"
-  #   start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
-  #   gitinit: true
-
-  # - name: "camera"
-  #   asset: "https://confluence.infn.it/x/nYD8DQ"
-  #   charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
-  #   host: "plbtfcosc001.lnf.infn.it"
-  #   user: "root"
-  #   workdir: "epik8s-deploy"
-  #   docker:
-  #     enable: true
-  #     image: baltig.infn.it:4567/epics-containers/infn-epics-ioc
-  #     # args: "-p 5064:5064/udp -p 5064:5064/tcp -p 5065:5065/udp -p 5065:5065/tcp -p 5075:5075/tcp  -p 5076:5076/udp -it -v .:/epics/ioc/config --network host"
-
+  - name: "unimagsim"
+    asset: "https://confluence.infn.it/display/TESTBEAM/SoftIOC+DEVIL+Wrapper"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/epics-py-base
+    iocprefix: "UNISIM:BTF"
+    start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+    gitinit: true
+    devtype: unimag
+    iocdir: "unimag"
+    devgroup: mag
+    iocparam:
+      - name: "CONFIG"
+        value: "btfmagsim.yaml"
+    opi: "unimag"
+    
   - name: "cam01"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
@@ -229,11 +290,12 @@ epicsConfiguration:
     user: "root"
     iocdir: "camera"
     autosync: true ## restart automatically on changes
+    opi: "camera"
 
     docker:
       enable: true
       image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
-    devtype: cam
+    devtype: camera
     devgroup: diag
     iocprefix: "BTF"
     iocroot: "CAM01"
@@ -261,10 +323,12 @@ epicsConfiguration:
     iocdir: "camera"
     ca_server_port: 5164
     pva_server_port: 5175
+    opi: "camera"
+
     docker:
       enable: true
       image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
-    devtype: cam
+    devtype: camera
     devgroup: diag
     iocprefix: "BTF"
     iocroot: "CAM02"
@@ -288,13 +352,15 @@ epicsConfiguration:
   - name: "cam-sim01"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-    iocdir: "camera-sim"
+    iocdir: "camera"
     autosync: true ## restart automatically on changes
-    devtype: cam
+    devtype: camerasim
     gitinit: true
     devgroup: diag
     iocprefix: "BTF"
     iocroot: "CAMSIM"
+    opi: "camera"
+      
     iocparam:
       - name: "CAMERA_TYPE"
         value: "Int8"
@@ -306,14 +372,31 @@ epicsConfiguration:
         value: "1024"
       - name: "CAMERA_STATS_YSIZE"
         value: "768"
-    
+    iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "Gain"
+          value: "255"
+        - name: "SimMode"
+          value: "Peaks"
+        - name: "PeakStartX"
+          value: "250"
+        - name: "PeakStartY"
+          value: "200"
+        - name: "PeakWidthX"
+          value: "70"
+        - name: "PeakWidthY"
+          value: "50"
+        - name: "PeakVariation"
+          value: "10"
+          
     # autosync: true
   - name: "orbit"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
     image: baltig.infn.it:4567/epics-containers/epics-py-base
     iocprefix: "BTF:ORBIT"
-    devtype: softioc
+    devtype: orbit
     devgroup: diag
     start: "/epics/ioc/config/start.sh"
     gitinit: true
@@ -336,7 +419,10 @@ epicsConfiguration:
       size: 8Mi
     gitinit: true
     autosync: false ## restart automatically on changes
-    
+    devtype: tml
+    devgroup: motor
+    opi: "tml"
+        
   - name: "slowcontrol"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
@@ -365,12 +451,8 @@ epicsConfiguration:
         value: "plbtfhactr001.lnf.infn.it"
     start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
     gitinit: true
-  
-      
     devtype: softioc
     devgroup: diag
-    start: "/epics/ioc/config/start.sh"
-    gitinit: true
     autosync: true ## restart automatically on changes
 
 applications:
@@ -390,7 +472,50 @@ backend:
   kafka:
     host: kafka-headless
     port: 9092
-
+opi:
+  camera:
+    url: https://baltig.infn.it/infn-epics/camera-opi.git
+    main: Camera_Main.bob
+    macro:
+      - name: "DEVICE"
+        value: "{{iocprefix}}"
+      - name: "CAM"
+        value: "{{iocroot}}"
+  dantemag:
+    url: https://baltig.infn.it/infn-epics/mag-opi.git
+    main: MagnetsTabs.bob
+    macro:
+      - name: "TITLE"
+        value: "MAGTERMINAL {{beamline}}"
+      - name: "P"
+        value: "{{iocprefix}}"
+  icpdas:
+    url: https://baltig.infn.it/infn-epics/icpdas-opi.git
+    main: "{{devtype}}.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "R"
+        value: "{{iocroot}}"
+  tml:
+    url: https://baltig.infn.it/infn-epics/motor-tml-opi.git
+    main: TML.bob
+    macro:
+      - name: "PREFIX"
+        value: "{{iocprefix}}"
+      - name: "CONFFILE"
+        value: "{{CONFIG}}"
+  unimag:
+    url: https://baltig.infn.it/infn-epics/unimag.git
+    main: opi/unimag.bob
+    macro:
+      - name: "TITLE"
+        value: "Unimag {{beamline}}"
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "CONFFILE"
+        value: "{{CONFIG}}"
+        
 nfsMounts:
     - name: data
       server: 192.168.197.157
