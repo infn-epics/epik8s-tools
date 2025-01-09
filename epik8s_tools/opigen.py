@@ -91,9 +91,10 @@ def main_opigen():
         print("%% iocs not present in configuration")
         return
     config = conf['epicsConfiguration']['iocs']
-    if 'opi' in device and not isinstance(device['opi'], str):
-        print(f"## opi field in device {device['name']} is not a string")
-        return
+    for device in config:
+        if 'opi' in device and not isinstance(device['opi'], str):
+            print(f"## opi field in device {device['name']} is not a string")
+            return
     config = [device for device in config if 'opi' in device and 'url' in conf['opi'][device['opi']]]
     config = [device for device in config if args.controls==None or device['name'] in args.controls]
 
