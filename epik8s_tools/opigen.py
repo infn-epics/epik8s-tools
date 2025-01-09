@@ -116,7 +116,7 @@ def main_opigen():
             clone_path = os.path.join(clonedirfull, os.path.basename(opi_url))
             if not os.path.exists(clone_path):
                 print(f"Cloning {opi_url} into {clone_path}")
-                subprocess.run(["git", "clone", opi_url, clone_path, "--recurse-submodules"])
+                subprocess.run(["git", "clone", "--depth","1", opi_url, clone_path,"--recurse-submodules"])
             else:
                 print(f"Repository {opi_url} already cloned in {clone_path}.")
             
