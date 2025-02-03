@@ -14,10 +14,10 @@
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
                     "--config", "tests/eli_values.yaml",
-                    "--host-dir", "./tests/eli_config",
-                    "--output", "docker-compose-eli.yaml",
+                    "--host-dir", "./eli_config",
+                    "--output", "./tests/docker-compose-eli.yaml",
                     "--pvaport","5175",
-                    "--exclude","archiver"
+                    "--services","vgcon01","vgcon02","vpcon17","vpcon19"
                     
                 ],
             "justMyCode": true,

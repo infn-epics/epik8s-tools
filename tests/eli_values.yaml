@@ -1,0 +1,1039 @@
+beamline: eli
+namespace: eli
+domain: ""
+ingressClassName: "haproxy"
+epik8namespace: "apps.k8s-da.lnf.infn.it"
+targetRevision: "main"
+serviceAccountName: "default"
+token: 6r-MzeKyVxfVnhPAxtpP
+## starting point
+giturl: https://baltig.infn.it/lnf-da-control/epik8s-eli.git
+gitrev: devel
+baseIp: "10.96.0.0/13" ## valid IPs is 10.96.0.0/12
+startIp: 1
+openshift: false
+epicsConfiguration:
+  name: "epics-configuration" # name of existing configMap that set CA parameters
+  address_list: ""
+
+# 10.16.4.26 gen-cs-gp09-ioc01.lnf.infn.it
+## modulator
+# plelillrf001.lnf.infn.it
+# plelillrfs001.lnf.infn.it
+# plelillrfs002.lnf.infn.it
+# plelillrfc001.lnf.infn.it
+# mikelinux.lnf.infn.it 
+  max_array_bytes: "10000000"
+  # conn_tmo: 120
+  services:
+    
+    gateway:
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      ingress:
+        enabled: false
+      loadbalancer: 10.10.6.107
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      staticIp: true
+      resources:
+            limits:
+              cpu: 999m
+              memory: 4Gi
+            requests:
+              cpu: 400m
+              memory: 1Gi
+    pvagateway:
+      charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
+      image:
+        repository: baltig.infn.it:4567/epics-containers/docker-pva-gateway
+        tag: "latest"
+      ingress:
+        enabled: false
+      loadbalancer: 10.10.6.108
+      replicaCount: 1
+      exec: start.sh
+      auto_security: true
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      staticIp: true
+      resources:
+            limits:
+              cpu: 999m
+              memory: 2Gi
+            requests:
+              cpu: 400m
+              memory: 500Mi
+    archiver: 
+      charturl: 'https://baltig.infn.it/epics-containers/epics-archiver-chart.git'
+
+      replicaCount: 1
+      serviceAccount:
+        create: false
+        name: "default"
+      storage:
+        lts:
+          path: /storage/lts
+          size: 100Gi
+          claim: ""
+          storageClassName: "nassparc-k8s-quad02"
+          accessMode: ReadWriteOnce
+        mts:
+          path: /storage/mts
+          size: 100Gi
+          claim: ""
+          storageClassName: "nassparc-k8s-quad02"
+          accessMode: ReadWriteOnce
+        sts:
+          path: /storage/sts
+          size: 10Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+        logs:
+          path: /storage/logs
+          size: 50Gi
+          claim: ""
+          accessMode: ReadWriteOnce
+          storageClassName: "nassparc-k8s-quad02"
+
+      mysql:
+            host: mysql
+            dbname: arcappl
+            user: arcappl
+            pass: arcappl
+      enable_ingress: true
+      securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 1000
+      resources:
+            limits:
+              cpu: 999m
+              memory: 6Gi
+            requests:
+              cpu: 100m
+              memory: 4Gi
+      autosync: true ## restart automatically on changes
+      usegateway: true
+
+    console: 
+        replicaCount: 1
+        charturl: https://baltig.infn.it/epics-containers/epics-console-chart.git
+        enable_ingress: true
+        gitpath: opi
+        resources:
+            limits:
+              cpu: 2000m
+              memory: 4Gi
+            requests:
+              cpu: 1000m
+              memory: 1Gi
+        gitRepoConfig:
+          url: https://baltig.infn.it/lnf-da-control/epik8s-eli.git
+          path: opi
+          branch: master
+        autosync: true ## restart automatically on changes
+        usegateway: true
+
+    notebook: 
+      charturl: https://baltig.infn.it/epics-containers/jupyter-chart.git
+      replicaCount: 1
+      gitRepoConfig:
+        url: https://baltig.infn.it/lnf-da-control/ecs-jupyter-control.git
+        path: .
+        branch: main
+        init: true
+      dataVolume:
+          claim:  ## an existing claim or empty will create a new one
+          size: 5Gi ## size of the claim
+          accessMode: ReadWriteOnce
+      enable_ingress: true
+      usegateway: true
+      autosync: true ## restart automatically on changes
+      pip:
+        - bluesky
+        - infn-ophyd-hal
+  
+
+    webalarm: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "webalarm"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+
+    pws: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "pvws"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+    
+    dbwr: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      image:
+        repository: baltig.infn.it:4567/epics-containers/phoebus-web-docker
+      phoebusservice: "dbwr"
+      auto_security: true
+      enable_ingress: true
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+      gitRepoConfig:
+          url: https://baltig.infn.it/lnf-da-control/eli-epics-opi.git
+          path: .
+      pvws:
+        host: eli-pws.apps.okd-datest.lnf.infn.it
+        port: 80
+    
+
+    olog: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "olog"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-ologAttachments"
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "INFO"
+      usegateway: true
+
+    saveandrestore: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "saveandrestore"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-saveandrestore"
+      autosync: true ## restart automatically on changes
+      service:
+        loglevel: "DEBUG"
+    alarmserver: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "alarmserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-ologAttachments"
+      # alarm:
+      #  config: "Accelerator,AcceleratorCommand,AcceleratorTalk"
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      usegateway: true
+
+    alarmlogger: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "alarmlogger"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-ologAttachments"
+      alarm:
+        config: "Accelerator"
+        topics: "Accelerato,ALARM,CONFIGS"
+      autosync: true ## restart automatically on changes
+
+    channelfinder: 
+      autosync: true ## restart automatically on changes
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/channelfinder-chart.git
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-channelfinder"
+      aa:
+        urls: "{'default': 'http://eli-archiver.apps.okd-datest.lnf.infn.it'}"
+        default_alias: default
+        enabled: true
+        pva: false
+        archive_property_name: archive
+        archiver_property_name: archiver
+        auto_pause: pvStatus,archive
+
+    scanserver: 
+      loglevel: DEBUG
+      charturl: https://baltig.infn.it/epics-containers/phoebus-services-chart.git
+      phoebusservice: "scanserver"
+      auto_security: true
+      enable_ingress: true
+      mongodb: "eli-ologAttachments"
+    mysql: 
+      name: mysql
+      charturl: registry-1.docker.io/bitnamicharts
+      targetRevision: '9.21.1'
+      chart: mysql
+      auth:
+          rootPassword: "arcappl"
+          createDatabase: true
+          database: "arcappl"
+          username: "arcappl"
+          password: "arcappl"
+      serviceAccount:
+        create: false
+        name: "default"
+  
+  iocs:
+    - name: "llrf01"
+      asset: "https://confluence.infn.it/x/doKBBg"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      iocdir: "libera-llrf"
+      devtype: llrf
+      devgroup: rf
+      iocprefix: "LEL-RF-LLRF03"
+      host: "10.16.4.31" # "plelillrf001"
+      scpoptions: "-O"
+      ssh_options: "-o PubkeyAcceptedKeyTypes=+ssh-rsa"
+      workdir: "/opt/epik8s-eli"
+      exec: "start.sh"
+      #autosync: true ## restart automatically on changes
+
+    - name: "orbit"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/epics-py-base
+      iocprefix: "LEL:ORBIT"
+      devtype: softioc
+      devgroup: diag
+      start: "/epics/ioc/config/start.sh"
+      gitinit: true
+      autosync: true ## restart automatically on changes
+      usegateway: false
+    
+    
+    - name: "ibilt-test"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      devtype: mag
+      devgroup: magnets
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      gitinit: true
+      autosync: false ## restart automatically on changes
+      # carepeater: true ## launch ca repeater, this ioc needs it
+
+    - name: "cam-sim02"
+      asset: "Simulate a camera with beam X=250,Y=200 DX=70 DY=50"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocdir: "camera"
+      autosync: true ## restart automatically on changes
+      devtype: camerasim
+      pva: true
+      gitinit: true
+      devgroup: diag
+      opi: "camera"
+        
+      iocprefix: "LEL"
+      iocroot: "TST02"
+      iocparam:
+        - name: "CAMERA_TYPE"
+          value: "Int8"
+        - name: "CAMERA_FTVL"
+          value: "UCHAR"
+        - name: "CAMERA_ELEMS"
+          value: "325546"
+        - name: "CAMERA_STATS_XSIZE"
+          value: "1024"
+        - name: "CAMERA_STATS_YSIZE"
+          value: "768"
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "Gain"
+          value: "255"
+        - name: "SimMode"
+          value: "Peaks"
+        - name: "PeakStartX"
+          value: "250"
+        - name: "PeakStartY"
+          value: "200"
+        - name: "PeakWidthX"
+          value: "70"
+        - name: "PeakWidthY"
+          value: "50"
+        - name: "PeakVariation"
+          value: "10"
+
+  
+    - name: "cam01"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      devtype: camera
+      devgroup: diag
+      gitinit: true
+      iocdir: "camera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "gigevision-network"
+      # hostNetwork: true
+      useAffinity: true
+      affinityKey: "gige"
+      affinityValue: "enabled"
+      iocprefix: "LEL:SCN01"
+      iocroot: "CAM01"
+      autosync: true ## restart automatically on changes
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "FrameRate"
+          value: "1"
+        - name: "FrameRateEnable"
+          value: "Yes"
+      iocparam:
+      - name: "CAMERA_ID"
+        value: "Basler-a2A1920-51gmBAS-40458493"
+      - name: "CAMERA_CLASS"
+        value: "Basler-a2A2600-20gmBAS"
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768" 
+
+    - name: "cam02"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126656"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      devtype: camera
+      devgroup: diag
+      gitinit: true
+      iocdir: "camera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "gigevision-network"
+      # hostNetwork: true
+      useAffinity: true
+      affinityKey: "gige"
+      affinityValue: "enabled"
+      iocprefix: "LEL:SCN02"
+      iocroot: "CAM01"
+      autosync: true ## restart automatically on changes
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "FrameRate"
+          value: "1"
+        - name: "FrameRateEnable"
+          value: "Yes"
+      iocparam:
+      - name: "CAMERA_ID"
+        value: "Basler-a2A1920-51gmBAS-40458497"
+      - name: "CAMERA_CLASS"
+        value: "Basler-a2A2600-20gmBAS"
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768"
+
+    - name: "cam03"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126656"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      devtype: camera
+      devgroup: diag
+      gitinit: true
+      iocdir: "camera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "gigevision-network"
+      # hostNetwork: true
+      useAffinity: true
+      affinityKey: "gige"
+      affinityValue: "enabled"
+      iocprefix: "LEL:SCN03"
+      iocroot: "CAM01"
+      autosync: true ## restart automatically on changes
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "FrameRate"
+          value: "1"
+        - name: "FrameRateEnable"
+          value: "Yes"
+      iocparam:
+      - name: "CAMERA_ID"
+        value: "Basler-a2A1920-51gmBAS-40458491"
+      - name: "CAMERA_CLASS"
+        value: "Basler-a2A2600-20gmBAS"
+      - name: "CAMERA_TYPE"
+        value: "Int8"
+      - name: "CAMERA_FTVL"
+        value: "UCHAR"
+      - name: "CAMERA_ELEMS"
+        value: "325546"
+      - name: "CAMERA_STATS_XSIZE"
+        value: "1024"
+      - name: "CAMERA_STATS_YSIZE"
+        value: "768"
+
+    - name: "cam-sim01"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocdir: "camera-sim"
+      autosync: true ## restart automatically on changes
+      devtype: camera
+      gitinit: true
+      pva: true
+      devgroup: diag
+      iocprefix: "LEL"
+      iocroot: "TST01"
+      iocinit:
+        - name: "AcquirePeriod"
+          value: "1"
+        - name: "Gain"
+          value: "255"
+        - name: "SimMode"
+          value: "Peaks"
+        - name: "PeakStartX"
+          value: "250"
+        - name: "PeakStartY"
+          value: "200"
+        - name: "PeakWidthX"
+          value: "70"
+        - name: "PeakWidthY"
+          value: "50"
+        - name: "PeakVariation"
+          value: "10"
+      iocparam:
+        - name: "CAMERA_TYPE"
+          value: "Int8"
+        - name: "CAMERA_FTVL"
+          value: "UCHAR"
+        - name: "CAMERA_ELEMS"
+          value: "325546"
+        - name: "CAMERA_STATS_XSIZE"
+          value: "1024"
+        - name: "CAMERA_STATS_YSIZE"
+          value: "768"
+
+    - name: "mrf01-gp09"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&objectId=113217"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      iocprefix: "TMG"
+      devtype: timing
+      devgroup: timing
+      host: "10.16.4.24"
+      workdir: "/opt/codac-4.1/apps/elinp-gp09-ioc01/iocBoot/epik8s"
+      exec: "start.sh"
+      autosync: false
+      nfsMounts:
+      - name: data
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/data
+        mountPath: /nfs/data
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      - name: autosave
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/autosave
+        mountPath: /nfs/autosave
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      - name: config
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/config
+        mountPath: /nfs/config
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      iocparam:
+        - name: "EVR_PREFIX"
+          value: "EVR01"
+        - name: "EVG_PREFIX"
+          value: "EVG01"
+      iocinit:
+        - name: "TMG-EVG01:EvtClk-Source-Sel" ## Event Clock, external (MHz)
+          value: "RF"
+        - name: "TMG-EVG01:EvtClk-RFDiv-SP" # Divider of Event Clock frequency
+          value: "1"
+        - name: "TMG-EVG01:EvtClk-RFFreq-SP" # Expected RF frequency
+          value: "62.08"
+        - name: "TMG-EVG01:SoftSeq-1-TsInpMode-Sel" ## Sequencer configuration
+          value: "EGU"  ## Configure sequencer 1 to use time (EGU) to define TOE instead of clock cycles (TICKS)
+        - name: "TMG-EVG01:SoftSeq-1-TsResolution-Sel"
+          value: uSec ## define TOE resolution as microseconds (uSec), valid settings are: Sec, mSec, uSec and nSec
+        - name: "TMG-EVG01:SoftSeq-1-TrigSrc-Sel"
+          value: Front0 ## External sequence trigger (AC mains on EVG TRIG input)
+        - name: "TMG-EVG01:Mxc7-Prescaler-SP"
+          value: 96 ## Sync the sequence trigger to 1/96 of the Event Clock frequency
+        - name: "TMG-EVG01:AcTrig-SyncSrc-Sel"
+          value: "Mxc7"
+        - name: "TMG-EVR01:Pul0-Width-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul0-Delay-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul0-Polarity-Sel"
+          value: "0" 
+        - name: "TMG-EVR01:Pul0-Ena-Sel"
+          value: "1"
+        - name: "TMG-EVR01:FrontUnivOut0-Src-Pulse-SP"
+          value: "Pulser 0"
+        - name: "TMG-EVR01:FrontUnivOut0-Ena-SP"
+          value: "1"
+        - name: "TMG-EVR01:Pul1-Width-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul1-Delay-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul1-Polarity-Sel"
+          value: "0"
+        - name: "TMG-EVR01:Pul1-Ena-Sel"
+          value: "1"
+        - name: "TMG-EVR01:FrontUnivOut1-Src-Pulse-SP"
+          value: "Pulser 1"
+        - name: "TMG-EVR01:FrontUnivOut1-Ena-SP"
+          value: "1"
+        - name: "TMG-EVR01:Pul2-Width-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul2-Delay-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul2-Polarity-Sel"
+          value: "0"
+        - name: "TMG-EVR01:Pul2-Ena-Sel"
+          value: "1"
+        - name: "TMG-EVR01:FrontUnivOut2-Src-Pulse-SP"
+          value: "Pulser 2"
+        - name: "TMG-EVR01:FrontUnivOut2-Ena-SP"
+          value: "1"
+        - name: "TMG-EVR01:Pul3-Width-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul3-Delay-SP"
+          value: "0"
+        - name: "TMG-EVR01:Pul3-Polarity-Sel"
+          value: "0"
+        - name: "TMG-EVR01:Pul3-Ena-Sel"
+          value: "1"
+        - name: "TMG-EVR01:FrontUnivOut3-Src-Pulse-SP"
+          value: "Pulser 3"
+        - name: "TMG-EVR01:FrontUnivOut3-Ena-SP"
+          value: "1"
+        - name: "TMG-EVR01:Link-Clk-SP"
+          value: "62.08"
+        - name: "TMG-EVR01:Ena-Sel"
+          value: "Enabled"
+
+      ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+      scpoptions: "-O"
+
+    - name: "mrfkey-gp08"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      devtype: timing
+      devgroup: timing
+      host: "10.16.4.25"
+      workdir: "/opt/codac-4.1/apps/elinp-gp08-ioc06/iocBoot/epik8s"
+      exec: "start.sh"
+      autosync: false
+      nfsMounts:
+      - name: data
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/data
+        mountPath: /nfs/data
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      - name: autosave
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/autosave
+        mountPath: /nfs/autosave
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      - name: config
+        server: "192.168.197.157"
+        path: /data_epik8s/eli/config
+        mountPath: /nfs/config
+        opt: "-o credentials=/etc/smbcredentials"
+        type: "cifs"
+      iocparam:
+        - name: "ADC0_PREFIX"
+          value: "LEL-DIA-FCT01"
+        - name: "ADC1_PREFIX"
+          value: "LEL-DIA-FCT02"
+        - name: "ADC_BUFFER_SIZE"
+          value: "2059"
+        - name: "EVR0_PREFIX"
+          value: "EVR02"
+        - name: "EVR1_PREFIX"
+          value: "EVR03"
+        - name: "TMG_PREFIX"
+          value: "TMG"
+      ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+      scpoptions: "-O"
+
+    - name: "polrev-icpdas01"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:POLREV"
+      iocroot: "ICPDAS01"
+      iocdir: "icpdas"
+      devtype: icp7060
+      devgroup: polarity_reversal
+      autosync: false
+      opi: "icpdas"
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.32 # ddeliicp6r6i001.lnf.infn.it #10.16.4.32
+
+    - name: "polrev-icpdas02"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:POLREV"
+      iocroot: "ICPDAS02"
+      iocdir: "icpdas"
+      devtype: icp7060
+      devgroup: polarity_reversal
+      opi: "icpdas"
+      autosync: false
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.33 # ddeliicp6r6i002.lnf.infn.it # 10.16.4.33
+
+    - name: "vgcon01"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111736"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VGCON01"
+      iocdir: "agilent-vac"
+      devtype: xgs600
+      devgroup: vgc
+      autosync: false
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4001
+      opi: "agilentXGS"
+      devices:
+        img:
+          opi: "xgs600img"
+          sensors:
+          - name: "GAUG01:CC"
+            sensor: "I1"
+            tcauto: "T3"
+          - name: "GAUG02:CC"
+            sensor: "I2"
+            tcauto: "T3"
+          - name: "GAUG03:CC"
+            sensor: "I3"
+            tcauto: "T3"
+          - name: "GAUG04:CC"
+            sensor: "I4"
+            tcauto: "T3"
+        setpoint:
+          opi: "xgs600setpoint"
+          sensors:
+          - name: "GAUG01:CC:SP1"
+            sensor: "I1"
+            number: "1"
+          - name: "GAUG01:CC:SP2"
+            sensor: "I2"
+            number: "2"
+          - name: "GAUG02:CC:SP1"
+            sensor: "I3"
+            number: "1"
+          - name: "GAUG02:CC:SP2"
+            sensor: "I4"
+            number: "2"
+          
+    - name: "vgcon02"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111737"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VGCON02"
+      iocdir: "agilent-vac"
+      devtype: xgs600
+      devgroup: vgc
+      autosync: false
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4003
+      opi: "agilentXGS"
+      devices:
+        img:
+          opi: "xgs600img"
+          sensors:
+          - name: "GAUG05:CC"
+            sensor: "I1"
+            tcauto: "T3"
+          - name: "GAUG06:CC"
+            sensor: "I2"
+            tcauto: "T3"
+          - name: "GAUG07:CC"
+            sensor: "I3"
+            tcauto: "T3"
+          - name: "GAUG08:CC"
+            sensor: "I4"
+            tcauto: "T3"
+        setpoint:
+          opi: "xgs600setpoint"
+          sensors:
+          - name: "GAUG05:CC:SP1"
+            sensor: "I1"
+            number: "1"
+          - name: "GAUG06:CC:SP2"
+            sensor: "I2"
+            number: "2"
+          - name: "GAUG07:CC:SP1"
+            sensor: "I3"
+            number: "1"
+          - name: "GAUG08:CC:SP2"
+            sensor: "I4"
+            number: "2"
+          
+    - name: "vpcon17"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129492"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VPCON17"
+      iocdir: "agilent-vac"
+      devtype: 4uhv
+      devgroup: vpc
+      autosync: false
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4002
+      opi: "agilent4uhv"
+      devices:
+          - name: "IONP01"
+            channel: 0
+          - name: "IONP02"
+            channel: 1
+          - name: "IONP03"
+            channel: 2
+          - name: "IONP04"
+            channel: 3
+    - name: "vpcon19"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129491"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VPCON19"
+      iocdir: "agilent-vac"
+      devtype: 4uhv
+      devgroup: vpc
+      autosync: false
+      gitinit: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4004
+      opi: "agilent4uhv"
+      devices:
+          - name: "IONP05"
+            channel: 0
+          - name: "IONP06"
+            channel: 1
+          - name: "IONP07"
+            channel: 2
+          - name: "IONP08"
+            channel: 3
+    - name: "start2-test"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "ELI:START2"
+      iocroot: "MEA1"
+      iocdir: "sigmaphi"
+      devtype: sigmaphi
+      devgroup: mag
+      autosync: true
+      gitinit: true
+      iocparam:
+        - name: "__SERVER__"
+          value: pselistart2001.lnf.infn.it # 10.16.4.196
+        - name: "MAX"
+          value: 1
+
+    - name: "start11-test"
+      asset: "https://confluence.infn.it/x/nYD8DQ"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "ELI:START11"
+      iocroot: "MEA1"
+      iocdir: "sigmaphi"
+      devtype: sigmaphi
+      devgroup: mag
+      autosync: true
+      gitinit: true
+      iocparam:
+        - name: "__SERVER__"
+          value: pselistart1101.lnf.infn.it # 10.16.4.197
+        - name: "MAX"
+          value: 1
+
+    - name: "unimag"
+      asset: "https://confluence.infn.it/display/SCS/Magnet+SoftIOC+Devil+Wrapper"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: baltig.infn.it:4567/epics-containers/epics-py-base
+      iocprefix: "LEL:MAG"
+      start: "/epics/ioc/config/start.sh" ## if your mynewioc has a start.sh this line must be kept
+      gitinit: true
+      devtype: unimag
+      devgroup: mag
+      iocdir: "unimag"
+      iocparam:
+        - name: "CONFIG"
+          value: "elimagsim.yaml"
+      opi: "unimag"
+
+cronjobs:
+    - name: "chfeeder"
+      image: baltig.infn.it:4567/epics-containers/epics-py-base
+      schedule: "* */12 * * *" # every 5 min ## "0 */12 * * *" ## at 12
+      gitRepoApp:
+        url: "https://baltig.infn.it/infn-epics/channelfinder-service-feeder.git"
+        path: .
+        branch: main
+      gitinit: true
+      
+applications:
+    - name: "icpdastemp01"
+      image:
+        repository: baltig.infn.it:4567/epics-containers/epics-py-base
+        tag: "latest"
+      namespace: "simulator"
+      gitRepoApp:
+        url: "https://baltig.infn.it/chaos-lnf-control/py-modbus-device-simulator.git"
+        path: .
+        branch: main
+      gitinit: true
+      exec: "pip install --user $USER -r /app/requirements.txt;python /app/modbusDeviceSimulator.py -p 5020 -d icpconet72xx -c /config/config.json"
+      service:
+        type: ClusterIP
+        ports:
+          - name: modbusport
+            port: 502
+            targetport: 5020
+            targetname: modbusport
+            protocol: TCP
+      securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+      
+
+backend:
+  namespace: "backend"
+  mongo:
+    host: mongodb
+    port: 27017
+    user:
+    pwd:
+  elasticsearch:
+    host: elasticsearch
+    clusterName: elasticsearch
+    port: 9200
+  kafka:
+    host: kafka-headless
+    port: 9092
+
+syncPolicy:
+    automated:
+      prune: true  # Optional: Automatically remove resources not specified in Helm chart
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true 
+      - Prune=true
+
+opi:
+  camera:
+    url: https://baltig.infn.it/infn-epics/camera-opi.git
+    main: Camera_Main.bob
+    macro:
+      - name: "DEVICE"
+        value: "{{iocprefix}}"
+      - name: "CAM"
+        value: "{{iocroot}}"
+  icpdas:
+    url: https://baltig.infn.it/infn-epics/icpdas-opi.git
+    main: "{{devtype}}.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "R"
+        value: "{{iocroot}}"
+  agilentXGS:
+    url: https://baltig.infn.it/infn-epics/vac-opi.git
+    main: "agilentXgs600/agilentXgs600Ctlr.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+
+  agilent4uhv:
+    url: https://baltig.infn.it/infn-epics/vac-opi.git
+    main: "agilent4uhv/agilent4uhv.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+  motor:
+    url: https://github.com/epics-modules/motor.git
+    main: "motorApp/op/opi/motorx.opi"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "M"
+        value: "m0"
+  tml:
+    url: https://baltig.infn.it/infn-epics/motor-tml-opi.git
+    main: TML.bob
+    macro:
+      - name: "PREFIX"
+        value: "{{iocprefix}}"
+      - name: "CONFFILE"
+        value: "{{CONFIG}}"
+
+  unimag:
+    url: https://baltig.infn.it/infn-epics/unimag.git
+    main: opi/unimag.bob
+    macro:
+      - name: "TITLE"
+        value: "Unimag {{beamline}}"
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "CONFFILE"
+        value: "{{CONFIG}}"
+nfsMounts:
+    - name: data
+      server: 192.168.197.157
+      path: /data_epik8s/eli/data
+      mountPath: /nfs/data
+      opt: "-o nolock"
+    - name: autosave
+      server: 192.168.197.157
+      path: /data_epik8s/eli/autosave
+      mountPath: /nfs/autosave
+      opt: "-o nolock"
+    - name: config
+      server: 192.168.197.157
+      path: /data_epik8s/eli/config
+      mountPath: /nfs/config
+      opt: "-o nolock"
+    

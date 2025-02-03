@@ -9,7 +9,7 @@ from jinja2 import Template
 GATEWAY_EXEC = """
 #!/bin/sh
 mkdir -p /epics/ca-gateway/configure
-cp -r /mnt/* /epics/ca-gateway/configure
+cp -r /src/* /epics/ca-gateway/configure
 sleep 10
 /mnt/start.sh
 """
@@ -28,13 +28,13 @@ exit 1
 fi
 {% endif %}
 mkdir /epics/ioc/config
-cp -r /mnt/* /epics/ioc/config/
+cp -r /src/* /epics/ioc/config/
 echo "=== configuration yaml ======="
-cat /mnt/__docker__/{{name}}/config.yaml
+cat /mnt/config.yaml
 echo "=============================="
 cd /epics/ioc/config
-find . -name "*.j2" -exec sh -c 'jnjrender "$1" __docker__/{{name}}/config.yaml --output "${1%.j2}"' _ {} \;
-cp -r /epics/ioc/config /mnt/__docker__/{{name}}/ ## copy the rendered files to the docker volume
+find . -name "*.j2" -exec sh -c 'jnjrender "$1" /mnt/config.yaml --output "${1%.j2}"' _ {} \;
+cp -r /epics/ioc/config/* /mnt/ ## copy the rendered files to the docker volume
 {% for mount in nfsMounts %}
 mkdir -p {{ mount.mountPath }}/{{ iocname }}
 {% if mount.name == "config" %}
@@ -54,12 +54,23 @@ def parse_config(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
 
-def determine_mount_path(host_dir, what, service_name):
+def determine_mount_path(host_dir, what, service_name, output_dir):
+    # If host_dir is relative, concatenate it with output_dir
+    check_dir = os.path.join(output_dir, host_dir)
+    isrelative = False
+    if not os.path.isabs(host_dir):
+        check_dir = os.path.join(check_dir, what, service_name)
+        isrelative = True
+
+    
     fallback_dir = os.path.join(host_dir, what, service_name)
-    if os.path.isdir(fallback_dir):
+    if os.path.isdir(check_dir):
         return fallback_dir
     else:
-        print(f"%% path {fallback_dir} does not exist")
+        if isrelative:
+            print(f"%% path {check_dir} does not exist, path must be relative to \"{output_dir}\" directory")
+        else:
+            print(f"%% path {fallback_dir} does not exist")
     return ""
 
 def render_config(template_str, service_config):
@@ -73,7 +84,7 @@ def write_config_file(directory, content, fname):
         file.write(content)
         os.chmod(config_path, 0o755)
 
-def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport,exclude_services):
+def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport,exclude_services,output_dir):
     docker_compose = {'services': {}}
     epics_config = config.get('epicsConfiguration', {})
     env_content = None
@@ -149,13 +160,13 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         if env_content:
             
             docker_compose['services'][service]['env_file'] = ["__docker__.env"]
-        mount_path = determine_mount_path(host_dir, 'services', service)
+        mount_path = determine_mount_path(host_dir, 'services', service, output_dir)
         if mount_path:
             docker_compose['services'][service]['volumes'] = [f"{mount_path}:/mnt"]
             if os.path.isfile(mount_path+"/start.sh"):
                 if service == "gateway" or service=="pvagateway":
-                    write_config_file(f"{mount_path}/__docker__", GATEWAY_EXEC, "docker_run.sh")
-                    docker_compose['services'][service]['command'] = "sh -c /mnt/__docker__/docker_run.sh"
+                    write_config_file(f"{output_dir}/__docker__/{service}", GATEWAY_EXEC, "docker_run.sh")
+                    docker_compose['services'][service]['command'] = "sh -c /mnt/docker_run.sh"
                 else:
                     docker_compose['services'][service]['command'] = "sh -c /mnt/start.sh"
 
@@ -170,10 +181,10 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         docker_compose['services'][ioc['name']]['ports']=["5064/tcp","5064/udp","5065/tcp","5065/udp","5075/tcp","5075/udp"]
 
         if env_content:
-            docker_compose['services'][ioc['name']]['env_file'] = ["__docker__.env"]
-        mount_path = determine_mount_path(host_dir, 'iocs', ioc.get('iocdir', ioc['name']))
+            docker_compose['services'][ioc['name']]['env_file'] = [f"__docker__.env"]
+        mount_path = determine_mount_path(host_dir, 'iocs', ioc.get('iocdir', ioc['name']),output_dir)
         if mount_path:
-            docker_compose['services'][ioc['name']]['volumes'] = [f"{mount_path}:/mnt"]
+            docker_compose['services'][ioc['name']]['volumes'] = [f"{mount_path}/:/src",f"./__docker__/{ioc['name']}:/mnt"]
             docker_compose['services'][ioc['name']]['tty'] = True
             docker_compose['services'][ioc['name']]['stdin_open'] = True
 
@@ -187,20 +198,20 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
             todump['iocname']=ioc['name']   
             config_content = yaml.dump(todump, default_flow_style=False)
 
-            write_config_file(f"{mount_path}/__docker__/{ioc['name']}", config_content, "config.yaml")
+            write_config_file(f"{output_dir}/__docker__/{ioc['name']}", config_content, "config.yaml")
             exec_content = render_config(IOC_EXEC, ioc)
-            write_config_file(f"{mount_path}/__docker__/{ioc['name']}", exec_content, "docker_run.sh")
-            docker_compose['services'][ioc['name']]['command'] = f"sh -c /mnt/__docker__/{ioc['name']}/docker_run.sh"
+            write_config_file(f"{output_dir}/__docker__/{ioc['name']}", exec_content, "docker_run.sh")
+            docker_compose['services'][ioc['name']]['command'] = f"sh -c /mnt/docker_run.sh"
         print(f"* added ioc {ioc['name']}")
 
     if env_content:
         env_content=f"{env_content}\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
-        write_config_file(".", env_content, "__docker__.env")
+        write_config_file(output_dir, env_content, "__docker__.env")
    
     if env_host_content:
         env_host_content=f"{env_host_content}\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
 
-        write_config_file(".", env_host_content, "epics-channel.env")
+        write_config_file(output_dir, env_host_content, "epics-channel.env")
     else:
         print("%% no environment file generated, no services gateway services selected")
 
@@ -227,9 +238,11 @@ def main_compose():
     caport=args.caport
     pvaport=args.pvaport
     ingressport=args.htmlport
+    output_dir = os.path.dirname(args.output)
+
     
     try:
-        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport,args.exclude)
+        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport,args.exclude,output_dir)
     except FileNotFoundError as e:
         print(e)
         return
@@ -237,8 +250,9 @@ def main_compose():
     with open(args.output, 'w') as output_file:
         yaml.dump(docker_compose, output_file, default_flow_style=False)
 
-    print(f"Docker Compose file generated at '{args.output}'")
-    print("Config files generated for each selected service.")
+    print(f"* docker compose file '{args.output}'")
+    print(f"* generating configurations in: {output_dir}")
+
 
 if __name__ == "__main__":
     main_compose()
