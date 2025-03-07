@@ -13,11 +13,12 @@
             "console": "integratedTerminal",
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
-                    "--config", "tests/eli_values.yaml",
+                    "--config", "./tests/eli_values.yaml",
                     "--host-dir", "./eli_config",
                     "--output", "./tests/docker-compose-eli.yaml",
                     "--pvaport","5175",
-                    "--services","vgcon01","vgcon02","vpcon17","vpcon19"
+                    "--services","diag-tml","gateway"
+                    //"vgcon01","vgcon02","vpcon17","vpcon19",
                     
                 ],
             "justMyCode": true,

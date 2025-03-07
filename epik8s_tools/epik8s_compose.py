@@ -11,7 +11,7 @@ GATEWAY_EXEC = """
 mkdir -p /epics/ca-gateway/configure
 cp -r /src/* /epics/ca-gateway/configure
 sleep 10
-/mnt/start.sh
+/epics/ca-gateway/configure/start.sh
 """
 
 IOC_EXEC = """
@@ -27,7 +27,9 @@ echo "## failed tty {{ serial.ptty }} "
 exit 1
 fi
 {% endif %}
-mkdir /epics/ioc/config
+echo "* pruning previous configs"
+rm -rf /epics/ioc/config
+mkdir -p /epics/ioc/config
 cp -r /src/* /epics/ioc/config/
 echo "=== configuration yaml ======="
 cat /mnt/config.yaml
@@ -162,12 +164,12 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
             docker_compose['services'][service]['env_file'] = ["__docker__.env"]
         mount_path = determine_mount_path(host_dir, 'services', service, output_dir)
         if mount_path:
-            docker_compose['services'][service]['volumes'] = [f"{mount_path}:/mnt"]
-            if os.path.isfile(mount_path+"/start.sh"):
-                if service == "gateway" or service=="pvagateway":
-                    write_config_file(f"{output_dir}/__docker__/{service}", GATEWAY_EXEC, "docker_run.sh")
-                    docker_compose['services'][service]['command'] = "sh -c /mnt/docker_run.sh"
-                else:
+            docker_compose['services'][service]['volumes'] = [f"{mount_path}/:/src",f"./__docker__/{service}:/mnt"]
+            if service == "gateway" or service=="pvagateway":
+                write_config_file(f"{output_dir}/__docker__/{service}", GATEWAY_EXEC, "docker_run.sh")
+                docker_compose['services'][service]['command'] = "sh -c /mnt/docker_run.sh"
+            else:
+                if os.path.isfile(mount_path+"/start.sh"):
                     docker_compose['services'][service]['command'] = "sh -c /mnt/start.sh"
 
         print(f"* added service {service}")
