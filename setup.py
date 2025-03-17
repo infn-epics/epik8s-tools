@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="epik8s-tools",
-    version="0.6.8",
+    version="0.6.9",
     packages=find_packages(),
     include_package_data=True,  # Ensure to include files from MANIFEST.in
 
@@ -37,5 +37,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.10',
 )
