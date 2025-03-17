@@ -14,10 +14,10 @@
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
                     "--config", "./tests/eli_values.yaml",
-                    "--host-dir", "./eli_config",
-                    "--output", "./tests/docker-compose-eli.yaml",
+                    "--host-dir", "./tests/eli_config",
+                    "--output", "./tests/docker-control-eli",
                     "--pvaport","5175",
-                    "--services","diag-tml","gateway"
+                    "--services","diag-tml","gateway","cam01"
                     //"vgcon01","vgcon02","vpcon17","vpcon19",
                     
                 ],
@@ -117,7 +117,7 @@
             "args":[
                     "--config", "epik8s-euaps/deploy/values.yaml",
                     "--host-dir", "./epik8s-euaps/config",
-                    "--output", "docker-compose-euaps.yaml",
+                    "--output", "./tests/docker-control-euaps",
                     "--pvaport","5175"
                 ],
             "justMyCode": true,

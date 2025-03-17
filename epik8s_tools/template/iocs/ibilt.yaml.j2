@@ -1,0 +1,21 @@
+
+ioc_name: {{iocname}}
+description: bilttest template
+
+entities:
+
+  - type: biltItest.configure
+    controllerName: BILT
+    P: {{iocprefix}}
+    IP: {{server}}
+    TCPPORT: {{port | default(5025) }}
+
+{%- for t in devices %}
+- type: biltItest.device
+  controller: BILT
+  P: "{{ t.name }}"
+  id: {{ t.channel }}
+  max: {{ t.channel | default(10)}}
+{%- endfor %}
+
+  

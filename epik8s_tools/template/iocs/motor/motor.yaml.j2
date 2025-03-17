@@ -1,0 +1,199 @@
+ioc_name: {{iocname}}
+description: Motor template {{devtype}}
+
+{%- if devtype == "newport" %}
+entities:
+
+  - type: motorNewport.SMC100CreateController
+    controllerName: NEWPORT001
+    P: "{{iocprefix}}:{{iocroot}}"
+    IP: {{server}}
+    TCPPORT: {{port}}
+    numAxes: {{motor.axis | length}}
+    EGUXSTEP: "{{motor.eguxstep | default(0.00005)}}"
+
+  {% for mot in motor.axis %}
+  - type: motorNewport.motorAxis
+    controller: NEWPORT001
+    M: ":{{mot.name}}"
+    ADDR: {{mot.axid}}
+    {%- if mot.dllm %}
+    DLLM: {{mot.dllm}}
+    {%- else %}
+    DLLM: {{motor.dllm | default(-25)}}
+    {%- endif %}
+    {%- if mot.dhlm %}
+    DHLM: {{mot.dhlm}}
+    {%- else %}
+    DHLM: {{motor.dhlm | default(25)}}
+    {%- endif %}
+    {%- if mot.home %}
+    home: {{mot.home}}
+    {%- else %}
+    home: {{motor.home | default(1)}}
+    {%- endif %}
+    {%- if mot.start %}
+    start: {{mot.start}}
+    {%- else %}
+    start: {{motor.start | default(10)}}
+    {%- endif %}
+    {%- if mot.velo %}
+    VELO: {{mot.velo}}
+    {%- else %}
+    VELO: {{motor.velo | default(1)}}
+    {%- endif %}
+    {%- if mot.desc %}
+    DESC: {{mot.desc}}
+    {%- else %}
+    DESC: "Axis {{mot.name}} {{mot.axid}}"
+    {%- endif %}
+    {%- if mot.dir %}
+    DIR: {{mot.dir}}
+    {%- else %}
+    DIR: {{motor.dir | default('Pos')}}
+    {%- endif %}
+    {%- if mot.egu %}
+    EGU: "{{mot.egu}}"
+    {%- else %}
+    EGU: {{motor.egu | default("mm")}}
+    {%- endif %}
+    {%- if mot.vbas %}
+    VBAS: {{mot.vbas}}
+    {%- else %}
+    VBAS: {{motor.vbas | default(0.2)}}
+    {%- endif %}
+    {%- if mot.accl %}
+    ACCL: {{mot.accl}}
+    {%- else %}
+    ACCL: {{motor.accl | default(0.2)}}
+    {%- endif %}
+    {%- if mot.bdst %}
+    BDST: {{mot.bdst}}
+    {%- else %}
+    BDST: {{motor.bdst | default(0)}}
+    {%- endif %}
+    {%- if mot.bvel %}
+    BVEL: {{mot.bvel}}
+    {%- else %}
+    BVEL: {{motor.bvel | default(0.5)}}
+    {%- endif %}
+    {%- if mot.bacc %}
+    BACC: {{mot.bacc}}
+    {%- else %}
+    BACC: {{motor.bacc | default(0.2)}}
+    {%- endif %}
+    {%- if mot.mres %}
+    MRES: {{mot.mres}}
+    {%- else %}
+    MRES: {{motor.mres | default(0.00001)}}
+    {%- endif %}
+    {%- if mot.prec %}
+    PREC: {{mot.prec}}
+    {%- else %}
+    PREC: {{motor.prec | default(6)}}
+    {%- endif %}
+    
+  {% endfor %}
+{%- endif %}
+
+{%- if devtype == "tml" %}
+shared:
+  - &motor
+    type: motorTML.motorAxis
+    controller: TML
+    NSTEPS: {{ motor.nsteps | default(200) }}
+    NMICROSTEPS: {{ motor.nmicrosteps | default(256) }}
+    VELO: {{motor.velo | default(20)}} 
+    VELO_MAX: {{ motor.velo_max | default(50)}}
+    VELO_MIN: {{ motor.velo_min | default(0.1 )}}
+    ACCL: {{motor.accl | default (0.5)}}
+    ACCL_MAX: {{motor.accl_max | default (1.5)}}
+    ACCL_MIN: {{motor.accl_min | default (0.01)}}
+    HAR: {{motor.har | default (0.5)}}
+    HVEL: {{motor.hvel | default (10)}}
+    JAR: {{motor.jar | default (1)}}
+    JVEL: {{motor.jvel | default (5)}}
+    EGU: {{motor.egu | default ("ustep")}} 
+    SLSP: {{motor.slsp | default (0.8)}}
+    ENABLED: {{motor.enabled | default (1)}}
+    TIMEOUT: 0
+
+entities:
+  - type: motorTML.CreateController
+    controllerName: TML
+    P: "{{iocprefix}}"
+    TTY: {{serial.ptty}}
+    numAxes: {{motor.axis | length}}
+    hostid: {{motor.hostid}}
+  
+{%- for mot in motor.axis %}
+  - <<: *motor
+    axid: {{mot.axid}}
+    name: {{mot.name}}
+    {%- if mot.nsteps %}
+    NSTEPS: {{ mot.nsteps }}
+    {%- endif %}
+    {%- if mot.nmicrosteps %}
+    NMICROSTEPS: {{ mot.nmicrosteps }}
+    {%- endif %}
+    {%- if mot.velo %}
+    VELO: {{ mot.velo }}
+    {%- endif %}
+    {%- if mot.pos_max %}
+    POS_MAX: {{ mot.pos_max }}
+    {%- endif %}
+    {%- if mot.pos_min %}
+    POS_MIN: {{ mot.pos_min }}
+    {%- endif %}
+    {%- if mot.egu2mm %}
+    EGU2MM: {{ mot.egu2mm }}
+    {%- endif %}
+    {%- if mot.velo_max %}
+    VELO_MAX: {{ mot.velo_max }}
+    {%- endif %}
+    {%- if mot.velo_min %}
+    VELO_MIN: {{ mot.velo_min }}
+    {%- endif %}
+    {%- if mot.accl %}
+    ACCL: {{ mot.accl }}
+    {%- endif %}
+    {%- if mot.accl_max %}
+    ACCL_MAX: {{ mot.accl_max }}
+    {%- endif %}
+    {%- if mot.accl_min %}
+    ACCL_MIN: {{ mot.accl_min }}
+    {%- endif %}
+    {%- if mot.har %}
+    HAR: {{ mot.har }}
+    {%- endif %}
+    {%- if mot.hvel %}
+    HVEL: {{ mot.hvel }}
+    {%- endif %}
+    {%- if mot.jar %}
+    JAR: {{ mot.jar }}
+    {%- endif %}
+    {%- if mot.jvel %}
+    JVEL: {{ mot.jvel }}
+    {%- endif %}
+    {%- if mot.egu %}
+    EGU: {{ mot.egu }}
+    {%- endif %}
+    {%- if mot.slsp %}
+    SLSP: {{ mot.slsp }}
+    {%- endif %}
+    {%- if mot.enabled %}
+    ENABLED: {{ mot.enabled }}
+    {%- endif %}
+    {%- if mot.timeout %}
+    TIMEOUT: {{ mot.timeout }}
+    {%- endif %}
+    
+{%- endfor %}
+  
+
+{%- endif %}
+
+  - type: epics.PostStartupCommand
+    command: |
+          dbl
+          dbl("*") > {{config_dir}}/pvlist.txt

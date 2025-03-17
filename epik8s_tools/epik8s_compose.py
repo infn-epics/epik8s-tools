@@ -1,6 +1,7 @@
 import os
 import argparse
 import yaml
+import shutil
 from jinja2 import Template
 
 
@@ -52,6 +53,11 @@ chmod +x {{ start }}
 {% endif %}
 """
 
+def copy_directory(src, dest):
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    shutil.copytree(src, dest)
+
 def parse_config(file_path):
     with open(file_path, 'r') as file:
         return yaml.safe_load(file)
@@ -86,7 +92,11 @@ def write_config_file(directory, content, fname):
         file.write(content)
         os.chmod(config_path, 0o755)
 
-def generate_docker_compose_and_configs(config, host_dir, selected_services,caport,pvaport,ingressport,exclude_services,output_dir):
+def generate_docker_compose_and_configs(output_dir, selected_services,caport,pvaport,ingressport,exclude_services):
+    config_yaml=output_dir+"/config.yaml"
+    host_dir="./config"
+    config = parse_config(config_yaml)
+
     docker_compose = {'services': {}}
     epics_config = config.get('epicsConfiguration', {})
     env_content = None
@@ -181,7 +191,9 @@ def generate_docker_compose_and_configs(config, host_dir, selected_services,capo
         image = ioc.get('image', 'baltig.infn.it:4567/epics-containers/infn-epics-ioc')
         docker_compose['services'][ioc['name']] = {'image': image}
         docker_compose['services'][ioc['name']]['ports']=["5064/tcp","5064/udp","5065/tcp","5065/udp","5075/tcp","5075/udp"]
-
+        if 'networks' in ioc:
+            docker_compose['services'][ioc['name']]['network_mode'] = 'host'
+            
         if env_content:
             docker_compose['services'][ioc['name']]['env_file'] = [f"__docker__.env"]
         mount_path = determine_mount_path(host_dir, 'iocs', ioc.get('iocdir', ioc['name']),output_dir)
@@ -235,26 +247,32 @@ def main_compose():
     parser.add_argument('--htmlport', default=ingressport, help="Start ingress (http) port on host")
 
     args = parser.parse_args()
-    config = parse_config(args.config)
 
     caport=args.caport
     pvaport=args.pvaport
     ingressport=args.htmlport
-    output_dir = os.path.dirname(args.output)
-
+    output_dir = args.output
+    os.makedirs(output_dir, exist_ok=True)
+    
+    ## hard copy the content of host-dir to output_dir
+    # Copy host_dir and config to output_dir
+    copy_directory(args.host_dir, os.path.join(output_dir, 'config'))
+    shutil.copy(args.config, os.path.join(output_dir, 'config.yaml'))
+    print(f"* copied {args.host_dir} to {output_dir}/config")
+    print(f"* copied {args.config} to {output_dir}/config.yaml")
+    
+    
     
     try:
-        docker_compose = generate_docker_compose_and_configs(config, args.host_dir, args.services,int(caport),int(pvaport),ingressport,args.exclude,output_dir)
+        docker_compose = generate_docker_compose_and_configs(output_dir, args.services,int(caport),int(pvaport),ingressport,args.exclude)
     except FileNotFoundError as e:
         print(e)
         return
-
-    with open(args.output, 'w') as output_file:
+    dcf=os.path.join(output_dir, 'docker-compose.yaml')
+    with open(dcf, 'w') as output_file:
         yaml.dump(docker_compose, output_file, default_flow_style=False)
 
-    print(f"* docker compose file '{args.output}'")
-    print(f"* generating configurations in: {output_dir}")
-
+    print(f"* docker compose file '{dcf}'")
 
 if __name__ == "__main__":
     main_compose()

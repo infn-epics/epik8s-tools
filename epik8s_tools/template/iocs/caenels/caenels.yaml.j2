@@ -1,0 +1,23 @@
+ioc_name: {{iocname}}
+description: Caenels template {{devtype}}
+
+{%- if devtype == "easydriver" %}
+entities:
+{% for alim in devices %}
+  - type: caenels.easydriver
+    P: "{{iocprefix}}:" 
+    R: "{{alim.name}}:"
+    IP: {{alim.ip}}
+    TCPPORT: {{alim.port | default(10001)}}
+    RANGE: {{alim.range | default(1)}}
+    OMAX: {{alim.omax | default(0)}}
+    IMAX: {{alim.imax | default(0)}}
+{% endfor %}
+{%- endif %}
+
+  
+
+  - type: epics.PostStartupCommand
+    command: |
+          dbl
+          dbl("*") > {{config_dir}}/pvlist.txt

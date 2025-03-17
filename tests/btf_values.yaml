@@ -192,7 +192,8 @@ epicsConfiguration:
       auto_security: true
       enable_ingress: true
       mongodb: "btf-ologAttachments"
-      disable: false ## 
+      disable: false ##
+      usegateway: true
     
     alarmserver: 
       name: "alarmserver"
@@ -234,6 +235,15 @@ epicsConfiguration:
           database: "arcappl"
           username: "arcappl"
           password: "arcappl"
+      primary:
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 4Gi
+          requests:
+            cpu: 100m
+            memory: 2Gi
+
       serviceAccount:
         create: false
         name: "default"
@@ -264,7 +274,7 @@ epicsConfiguration:
     iocdir: "unimag"
     iocparam:
       - name: "CONFIG"
-        value: "btfmagtest.yaml"
+        value: "btfmagdante.yaml"
     opi: "unimag"
        
 
@@ -289,7 +299,7 @@ epicsConfiguration:
     host: "plbtfcosc001.lnf.infn.it"
     user: "root"
     iocdir: "camera"
-    autosync: true ## restart automatically on changes
+    autosync: false ## restart automatically on changes
     opi: "camera"
 
     docker:
@@ -315,6 +325,76 @@ epicsConfiguration:
       - name: "CAMERA_STATS_YSIZE"
         value: "768"
 
+  - name: "cam-btfdir"
+    asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+    devtype: camera
+    devgroup: diag
+    gitinit: true
+    iocdir: "camera"
+    pva: true
+
+    iocprefix: "BTF"
+    iocroot: "CAM03"
+    iocinit:
+      - name: "AcquirePeriod"
+        value: "1"
+      - name: "FrameRate"
+        value: "1"
+      - name: "FrameRateEnable"
+        value: "Yes"
+    iocparam:
+    - name: "CAMERA_ID"
+      value: "192.168.189.141"
+    - name: "CAMERA_CLASS"
+      value: "Basler-a2A2600-20gmBAS"
+    - name: "CAMERA_TYPE"
+      value: "Int8"
+    - name: "CAMERA_FTVL"
+      value: "UCHAR"
+    - name: "CAMERA_ELEMS"
+      value: "325546"
+    - name: "CAMERA_STATS_XSIZE"
+      value: "1024"
+    - name: "CAMERA_STATS_YSIZE"
+      value: "768" 
+
+  - name: "cam-linac"
+    asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+    devtype: camera
+    devgroup: diag
+    gitinit: true
+    iocdir: "camera"
+    pva: true
+
+    iocprefix: "LINAC:FLAG"
+    iocroot: "CAM01"
+    iocinit:
+      - name: "AcquirePeriod"
+        value: "1"
+      - name: "FrameRate"
+        value: "1"
+      - name: "FrameRateEnable"
+        value: "Yes"
+    iocparam:
+    - name: "CAMERA_ID"
+      value: "192.168.110.25"
+    - name: "CAMERA_CLASS"
+      value: "Basler-a2A2600-20gmBAS"
+    - name: "CAMERA_TYPE"
+      value: "Int8"
+    - name: "CAMERA_FTVL"
+      value: "UCHAR"
+    - name: "CAMERA_ELEMS"
+      value: "325546"
+    - name: "CAMERA_STATS_XSIZE"
+      value: "1024"
+    - name: "CAMERA_STATS_YSIZE"
+      value: "768" 
+
   - name: "cam02"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
@@ -332,7 +412,6 @@ epicsConfiguration:
     devgroup: diag
     iocprefix: "BTF"
     iocroot: "CAM02"
-    autosync: true ## restart automatically on changes
     iocparam:
       - name: "CAMERA_ID"
         value: "Basler-scA640-70gm-23665713"
@@ -404,6 +483,57 @@ epicsConfiguration:
     usegateway: false
     disable: true ## dont deploy
 
+  - name: "tml-test"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    iocprefix: "TEST:TML"
+    usegateway: true
+
+    serial:
+      ip: 192.168.190.55
+      port: 4001
+      ptty: /var/tmp/ttyV0
+      baud: 9600
+    dataVolume:
+      accessMode: 'ReadWriteOnce' ## until not enabled shared
+      size: 8Mi
+    gitinit: true
+    autosync: false ## restart automatically on changes
+    devtype: tml
+    devgroup: motor
+    opi: "tml"
+    iocdir: "motor"  
+    motor:
+      hostid: 15
+      axis:
+        - axid: 15
+          name: LAB
+          ustep2mm: 684931.506849
+          velo_max: 200
+  
+  - name: "easydriver"
+    asset: "https://confluence.infn.it/x/nYD8DQ"
+    charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+    image: baltig.infn.it:4567/epics-containers/infn-epics-ioc
+    iocprefix: "BTF:MAG:EASY"
+    dataVolume:
+      accessMode: 'ReadWriteOnce'
+      size: 8Mi
+    devices:
+      - name: "CHHTB201"
+        ip: 192.168.191.177
+        range: 10
+      - name: "CVVTB201"
+        ip: 192.168.191.178
+        range: 10
+    gitinit: true
+    autosync: false ## restart automatically on changes
+    devtype: easydriver
+    devgroup: motor
+    opi: "easydriver"
+    iocdir: "caenels"  
+    
+
   - name: "tml-motor"
     asset: "https://confluence.infn.it/x/nYD8DQ"
     charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
@@ -422,6 +552,69 @@ epicsConfiguration:
     devtype: tml
     devgroup: motor
     opi: "tml"
+    iocdir: "motor"  
+    motor:
+      hostid: 3
+      axis:
+        - axid: 3
+          name: SLTTB004R
+          egu2mm: 684931.506849
+          velo_max: 200
+        - axid: 4
+          name: SLTTB004L
+          egu2mm: 684931.506849
+          velo_max: 200
+        - axid: 5
+          name: SLTTB002R
+          egu2mm: 684931.506849
+          velo_max: 200
+        - axid: 6
+          name: SLTTB002L
+          egu2mm: 684931.506849
+          velo_max: 200
+        - axid: 7
+          name: SLTTB003U
+          egu2mm: 51282.0512821
+          velo_max: 100
+        - axid: 8
+          name: SLTTB003D
+          egu2mm: 51282.0512821
+          velo_max: 100
+        - axid: 9
+          name: SLTTB001U
+          egu2mm: 51282.0512821
+          velo_max: 50
+        - axid: 10
+          name: SLTTB001D
+          egu2mm: 51282.0512821
+          velo_max: 50
+        - axid: 11
+          name: TGTTB001
+          egu2mm: 51282.0512821
+          velo_max: 100
+        - axid: 20
+          name: SLTTB005L
+          egu2mm: 34129.69283280
+          velo_max: 100
+          pos_max: 1322350
+        - axid: 21
+          name: SLTTB005R
+          egu2mm: 34129.6928328
+          velo_max: 100
+          pos_max: 1322350
+        - axid: 25
+          name: SLTTB006L
+          egu2mm: 34129.6928328
+          velo_max: 100
+        - axid: 24
+          name: SLTTB006R
+          egu2mm: 34129.6928328
+          velo_max: 100
+        - axid: 22
+          name: TGTTB002
+          egu2mm: 34129.6928328
+          velo_max: 100
+
         
   - name: "slowcontrol"
     asset: "https://confluence.infn.it/x/nYD8DQ"
@@ -456,7 +649,6 @@ epicsConfiguration:
     autosync: true ## restart automatically on changes
 
 applications:
-   
 
 backend:
   namespace: "backend"
@@ -489,6 +681,22 @@ opi:
         value: "MAGTERMINAL {{beamline}}"
       - name: "P"
         value: "{{iocprefix}}"
+  motor:
+    url: https://github.com/epics-modules/motor.git
+    main: "motorApp/op/opi/motorx.opi"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "M"
+        value: "m0"
+  easydriver:
+    url: https://baltig.infn.it/infn-epics/caenels-opi.git
+    main: "easydriver/easydriver-main.bob"
+    macro:
+      - name: "P"
+        value: "{{iocprefix}}"
+      - name: "R"
+        value: ""
   icpdas:
     url: https://baltig.infn.it/infn-epics/icpdas-opi.git
     main: "{{devtype}}.bob"
@@ -540,4 +748,3 @@ syncPolicy:
     syncOptions:
       - CreateNamespace=true 
       - Prune=true
-    

@@ -1,0 +1,21 @@
+
+ioc_name: {{iocname}}
+description: sigmaPhiStart 
+
+entities:
+
+  - type: sigmaPhiStart.configure
+    controllerName: START
+    P: {{iocprefix}}
+    IP: {{server}}
+    TCPPORT: {{port | default(502) }}
+
+{%- for t in devices %}
+  - type: sigmaPhiStart.device
+    controller: START
+    P: {{t.name}}
+    max: {{t.max}}
+{%- endfor %}
+
+
+  
