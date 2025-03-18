@@ -319,7 +319,8 @@ epicsConfiguration:
     
     - name: "biltitest-cpsu03"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111616"
-      devtype: biltitest
+      devtype: bilt-itest
+      iocdir: "ibilt-test"
       devgroup: mag
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       gitinit: true
@@ -516,7 +517,7 @@ epicsConfiguration:
     - name: "cam-sim01"
       asset: "https://confluence.infn.it/x/nYD8DQ"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocdir: "camera-sim"
+      iocdir: "camera"
       autosync: true ## restart automatically on changes
       devtype: camera
       gitinit: true
@@ -1136,6 +1137,7 @@ epicsConfiguration:
       iocbin: "../bin/linux-x86_64/elinp-gp04-ioc17"
       iocfunc: "elinp_gp04_ioc17"
       exec: "start.sh"
+      iocdir: "cosylabioc"
       autosync: false
       nfsMounts:
       - name: data
@@ -1435,6 +1437,7 @@ epicsConfiguration:
       autosync: false ## restart automatically on changes
       # carepeater: true ## launch ca repeater, this ioc needs it
       iocprefix: "LEL:MAG:CPSU01"
+      iocdir: "ibilt-test"
       iocparam:
         - name: "server"
           value: 10.16.4.48
@@ -1529,6 +1532,7 @@ epicsConfiguration:
       autosync: false ## restart automatically on changes
       # carepeater: true ## launch ca repeater, this ioc needs it
       iocprefix: "LEL:MAG:CPSU02"
+      iocdir: "ibilt-test"
       iocparam:
         - name: "server"
           value: 10.16.4.44
@@ -1619,7 +1623,7 @@ epicsConfiguration:
     - name: "motor-tml"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2447&objectId=133401"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocprefix: "LEL"
+      iocprefix: "LEL:TEST"
       usegateway: true
 
       serial:
@@ -1659,8 +1663,8 @@ epicsConfiguration:
       usegateway: true
 
       serial:
-        ip: 10.16.4.63
-        port: 4001
+        ip: 10.16.4.57
+        port: 4005
         ptty: /var/tmp/ttyV0
         baud: 9600
       dataVolume:
@@ -1677,32 +1681,32 @@ epicsConfiguration:
         jvel: 30
         hvel: 30
         axis:
-          # - axid: 1
-          #   name: SCN01:MOT01
-          #   ustep2mm: 684931.506849
-          #   velo_max: 200
-          #   jvel: 50
-          #   hvel: 50
-          # - axid: 2
-          #   name: SCN02:MOT01
-          #   ustep2mm: 684931.506849
-          #   velo_max: 200
-          # - axid: 3
-          #   name: SCN03:MOT01
-          #   ustep2mm: 684931.506849
-          #   velo_max: 200
           - axid: 4
+            name: SCN01:MOT01
+            ustep2mm: 684931.506849
+            velo_max: 200
+            jvel: 50
+            hvel: 50
+          - axid: 5
+            name: SCN02:MOT01
+            ustep2mm: 684931.506849
+            velo_max: 200
+          - axid: 12
+            name: SCN03:MOT01
+            ustep2mm: 684931.506849
+            velo_max: 200
+          - axid: 9
             name: SCN04:MOT01
             ustep2mm: 684931.506849
             velo_max: 200
-          - axid: 5
+          - axid: 7
             name: SCN05:MOT01
             ustep2mm: 684931.506849
             velo_max: 200
-          # - axid: 6
-          #   name: SCN06:MOT01
-          #   ustep2mm: 684931.506849
-          #   velo_max: 200
+          - axid: 13
+            name: SCN06:MOT01
+            ustep2mm: 684931.506849
+            velo_max: 200
     - name: "unimag"
       asset: "https://confluence.infn.it/display/SCS/Magnet+SoftIOC+Devil+Wrapper"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'

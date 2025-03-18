@@ -15,9 +15,8 @@
             "args":[
                     "--config", "./tests/eli_values.yaml",
                     "--host-dir", "./tests/eli_config",
-                    "--output", "./tests/docker-control-eli",
                     "--pvaport","5175",
-                    "--services","diag-tml","gateway","cam01"
+                   // "--services","diag-tml","gateway","cam01"
                     //"vgcon01","vgcon02","vpcon17","vpcon19",
                     
                 ],
