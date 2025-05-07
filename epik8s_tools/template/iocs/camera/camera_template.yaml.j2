@@ -240,7 +240,7 @@ entities:
       ### end common initializations
       {%- endfor %}
 
-      {%- for param in camera.init %}
+      {%- for param in camera.iocinit %}
       ## specific initializations
       dbpf("{{iocprefix}}:{{camera.name}}:{{param.name}}","{{param.value}}")
       ### end specific initializations

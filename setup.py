@@ -1,3 +1,4 @@
+
 # setup.py
 # python3 setup.py sdist bdist_wheel
 # python3 -m twine upload dist/*
@@ -7,7 +8,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="epik8s-tools",
-    version="0.7.1",
+    version="0.7.2",
     packages=find_packages(),
     include_package_data=True,  # Ensure to include files from MANIFEST.in
 
