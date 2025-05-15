@@ -11,6 +11,7 @@ A simple guide to bring up a k8s single node cluster (extensible) is [*microk8s*
 - **OPI Generation**: Configure OPI (Operator Interface) panels for each beamline, including macros and settings.
 - **Support for Ingress and Load Balancers**: Configurable settings for CA and PVA gateway IPs and ingress classes.
 - **Customizable Options**: Extensive CLI options to adapt configurations to specific project needs.
+- **IOC Execution**: Run IOC configurations directly using the `epik8s-run` tool.
 
 ## Installation
 
@@ -88,3 +89,23 @@ For projects that require external access to Channel Access (CA) and PV Access (
 ```bash
 epik8s-tools my_project --beamline MyBeamline --cagatewayip 10.96.1.10 --pvagatewayip 10.96.1.11
 ```
+
+---
+
+### Running IOCs with `epik8s-run`
+
+The `epik8s-run` tool allows you to execute IOC configurations directly from a YAML file.
+
+#### Example Command
+
+```bash
+epik8s-run beamline-config.yaml ioc1 ioc2 --workdir ./workdir --native
+```
+
+- **`beamline-config.yaml`**: Path to the YAML configuration file containing IOC definitions.
+- **`ioc1`, `ioc2`**: Names of the IOCs to run.
+- **`--workdir`**: Working directory for temporary files (default: `.`).
+- **`--native`**: Run natively without using Docker.
+- **`--image`**: Specify the Docker image to use (default: `ghcr.io/infn-epics/infn-epics-ioc-runtime:latest`).
+
+This command will validate the IOC configurations, generate necessary files, and start the IOCs either natively or in a Docker container.

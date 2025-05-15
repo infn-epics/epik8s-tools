@@ -5,9 +5,9 @@ ingressClassName: "haproxy"
 epik8namespace: "int.eli-np.ro"
 targetRevision: "main"
 serviceAccountName: "default"
-token: 6r-MzeKyVxfVnhPAxtpP
+# token:
 ## starting point
-giturl: https://baltig.infn.it/lnf-da-control/epik8s-eli.git
+giturl: https://github.com/infn-epics/epik8s-eli.git
 gitrev: devel
 baseIp: "10.96.0.0/13" ## valid IPs is 10.96.0.0/12
 startIp: 1
@@ -312,7 +312,7 @@ epicsConfiguration:
       devgroup: diag
       start: "/epics/ioc/config/start.sh"
       gitinit: true
-      autosync: true ## restart automatically on changes
+      autosync: false ## restart automatically on changes
       usegateway: false
     
     
@@ -345,53 +345,74 @@ epicsConfiguration:
             id: 4
             max: 10
           
-    - name: "cam-sim02"
-      asset: "Simulate a camera with beam X=250,Y=200 DX=70 DY=50"
+    - name: "camerasim"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocdir: "camera"
-      autosync: true ## restart automatically on changes
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camerasim
-      pva: true
-      gitinit: true
       devgroup: diag
-      opi: "camera"
-        
-      iocprefix: "LEL"
-      iocroot: "TST02"
-      iocparam:
-        - name: "CAMERA_TYPE"
-          value: "Int8"
-        - name: "CAMERA_FTVL"
-          value: "UCHAR"
-        - name: "CAMERA_ELEMS"
-          value: "325546"
-        - name: "CAMERA_STATS_XSIZE"
-          value: "1024"
-        - name: "CAMERA_STATS_YSIZE"
-          value: "768"
+      gitinit: true
+      template: "adcamera"
+      targetRevision: 'templates'
+      enable_ingress: true
+      service:   
+        http:
+          enable: true
+          port: 8082
+      stream_enable: true
+      roi_enable: true
+      stats_enable: true
+      proc_enable: true
+      overlay_enable: true
+      pva: true
+      
+      # hostNetwork: true
+      iocprefix: "LEL:CAMERA:SIM"
+      autosync: false ## restart automatically on changes
       iocinit:
         - name: "AcquirePeriod"
           value: "1"
-        - name: "Gain"
-          value: "255"
-        - name: "SimMode"
-          value: "Peaks"
-        - name: "PeakStartX"
-          value: "250"
-        - name: "PeakStartY"
-          value: "200"
-        - name: "PeakWidthX"
-          value: "70"
-        - name: "PeakWidthY"
-          value: "50"
-        - name: "PeakVariation"
-          value: "10"
-
-  
+        - name: "FrameRate"
+          value: "1"
+        - name: "FrameRateEnable"
+          value: "Yes"
+      iocparam:
+        - name: "overlay_enable"
+          value: true
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: true
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: true
+      devices:
+        - name: "CAM01"
+          iocinit:
+          - name: "AcquirePeriod"
+            value: "1"
+          - name: "Gain"
+            value: "255"
+          - name: "SimMode"
+            value: "Peaks"
+          - name: "PeakStartX"
+            value: "250"
+          - name: "PeakStartY"
+            value: "200"
+          - name: "PeakWidthX"
+            value: "70"
+          - name: "PeakWidthY"
+            value: "50"
+          - name: "PeakVariation"
+            value: "10"
+        
+        
+    
     - name: "cam01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
       devgroup: diag
       gitinit: true
@@ -405,8 +426,7 @@ epicsConfiguration:
       affinityKey: "gige"
       affinityValue: "enabled"
       iocprefix: "LEL:SCN01"
-      iocroot: "CAM01"
-      autosync: true ## restart automatically on changes
+      autosync: false ## restart automatically on changes
       iocinit:
         - name: "AcquirePeriod"
           value: "1"
@@ -415,25 +435,25 @@ epicsConfiguration:
         - name: "FrameRateEnable"
           value: "Yes"
       iocparam:
-      - name: "CAMERA_ID"
-        value: "Basler-a2A1920-51gmBAS-40458493"
-      - name: "CAMERA_CLASS"
-        value: "Basler-a2A2600-20gmBAS"
-      - name: "CAMERA_TYPE"
-        value: "Int8"
-      - name: "CAMERA_FTVL"
-        value: "UCHAR"
-      - name: "CAMERA_ELEMS"
-        value: "325546"
-      - name: "CAMERA_STATS_XSIZE"
-        value: "1024"
-      - name: "CAMERA_STATS_YSIZE"
-        value: "768" 
-
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      cameras:
+        - name: "CAM01"
+          CAMERA_ID: Basler-a2A1920-51gmBAS-40458493
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
+        
     - name: "cam02"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126656"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
       devgroup: diag
       gitinit: true
@@ -447,8 +467,7 @@ epicsConfiguration:
       affinityKey: "gige"
       affinityValue: "enabled"
       iocprefix: "LEL:SCN02"
-      iocroot: "CAM01"
-      autosync: true ## restart automatically on changes
+      autosync: false ## restart automatically on changes
       iocinit:
         - name: "AcquirePeriod"
           value: "1"
@@ -457,25 +476,26 @@ epicsConfiguration:
         - name: "FrameRateEnable"
           value: "Yes"
       iocparam:
-      - name: "CAMERA_ID"
-        value: "Basler-a2A1920-51gmBAS-40458497"
-      - name: "CAMERA_CLASS"
-        value: "Basler-a2A2600-20gmBAS"
-      - name: "CAMERA_TYPE"
-        value: "Int8"
-      - name: "CAMERA_FTVL"
-        value: "UCHAR"
-      - name: "CAMERA_ELEMS"
-        value: "325546"
-      - name: "CAMERA_STATS_XSIZE"
-        value: "1024"
-      - name: "CAMERA_STATS_YSIZE"
-        value: "768"
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      cameras:
+        - name: "CAM01"
+          CAMERA_ID: Basler-a2A1920-51gmBAS-40458497
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
 
+    
     - name: "cam03"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126656"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      image: baltig.infn.it:4567/epics-containers/infn-epics-ioc:latest
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
       devgroup: diag
       gitinit: true
@@ -489,8 +509,7 @@ epicsConfiguration:
       affinityKey: "gige"
       affinityValue: "enabled"
       iocprefix: "LEL:SCN03"
-      iocroot: "CAM01"
-      autosync: true ## restart automatically on changes
+      autosync: false ## restart automatically on changes
       iocinit:
         - name: "AcquirePeriod"
           value: "1"
@@ -499,62 +518,26 @@ epicsConfiguration:
         - name: "FrameRateEnable"
           value: "Yes"
       iocparam:
-      - name: "CAMERA_ID"
-        value: "Basler-a2A1920-51gmBAS-40458491"
-      - name: "CAMERA_CLASS"
-        value: "Basler-a2A2600-20gmBAS"
-      - name: "CAMERA_TYPE"
-        value: "Int8"
-      - name: "CAMERA_FTVL"
-        value: "UCHAR"
-      - name: "CAMERA_ELEMS"
-        value: "325546"
-      - name: "CAMERA_STATS_XSIZE"
-        value: "1024"
-      - name: "CAMERA_STATS_YSIZE"
-        value: "768"
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      cameras:
+        - name: "CAM01"
+          CAMERA_ID: Basler-a2A1920-51gmBAS-40458491
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
 
-    - name: "cam-sim01"
-      asset: "https://confluence.infn.it/x/nYD8DQ"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocdir: "camera"
-      autosync: true ## restart automatically on changes
-      devtype: camera
-      gitinit: true
-      pva: true
-      devgroup: diag
-      iocprefix: "LEL"
-      iocroot: "TST01"
-      iocinit:
-        - name: "AcquirePeriod"
-          value: "1"
-        - name: "Gain"
-          value: "255"
-        - name: "SimMode"
-          value: "Peaks"
-        - name: "PeakStartX"
-          value: "250"
-        - name: "PeakStartY"
-          value: "200"
-        - name: "PeakWidthX"
-          value: "70"
-        - name: "PeakWidthY"
-          value: "50"
-        - name: "PeakVariation"
-          value: "10"
-      iocparam:
-        - name: "CAMERA_TYPE"
-          value: "Int8"
-        - name: "CAMERA_FTVL"
-          value: "UCHAR"
-        - name: "CAMERA_ELEMS"
-          value: "325546"
-        - name: "CAMERA_STATS_XSIZE"
-          value: "1024"
-        - name: "CAMERA_STATS_YSIZE"
-          value: "768"
+    
 
-    - name: "mrf-laser-delay"
+    
+
+    - name: "plelievr001-laser-delay"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=113215"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocprefix: "LEL:TIM"
@@ -562,7 +545,7 @@ epicsConfiguration:
       iocdir: "cosylabioc"
       devgroup: timing
       host: "10.16.4.24" ## plelievr001
-      workdir: "/opt/codac-4.1/apps/elinp-gp06-ioc01/epik8s"
+      workdir: "/opt/codac-4.1/apps/elinp-gp06-ioc01/epik8s-laser-delay"
       exec: "start.sh"
       iocbin: "../bin/linux-x86_64/elinp-gp06-ioc01"
       iocfunc: "elinp_gp06_ioc01"
@@ -587,8 +570,8 @@ epicsConfiguration:
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       devices:
-        evr:
           - name: "EVR-LAS"
+            devtype: evr230
             bus: 9
             slot: 9
             func: 0
@@ -649,18 +632,18 @@ epicsConfiguration:
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
     
-    - name: "mrf-rf-delay"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=119372"
+    - name: "plelievr002-rf-delay"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=133675"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocprefix: "LEL:TIM"
       devtype: evr230
       iocdir: "cosylabioc"
       devgroup: timing
-      host: "10.16.4.25" ## plelievr002
-      workdir: "/opt/codac-4.1/apps/elinp-gp08-ioc06/epik8s"
+      host: "10.16.4.62" ## plelievr002
+      workdir: "/opt/codac-4.1/apps/elinp-gp04-ioc17/epik8s-rf-delay"
       exec: "start.sh"
-      iocbin: "../bin/linux-x86_64/elinp-gp08-ioc06"
-      iocfunc: "elinp_gp08_ioc06"
+      iocbin: "../bin/linux-x86_64/elinp-gp04-ioc17"
+      iocfunc: "elinp_gp04_ioc17"
       autosync: false
       nfsMounts:
       - name: data
@@ -682,11 +665,11 @@ epicsConfiguration:
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       devices:
-        evr:
           - name: "EVR-LLRF"
             bus: 9
             slot: 10
             func: 0
+            devtype: evr230
             iocinit:
               - name: "Pul0-Width-SP"
                 value: "0"
@@ -744,6 +727,7 @@ epicsConfiguration:
             bus: 9
             slot: 12
             func: 0
+            devtype: evr230
             iocinit:
               - name: "Pul0-Width-SP"
                 value: "0"
@@ -801,6 +785,7 @@ epicsConfiguration:
             bus: 9
             slot: 14
             func: 0
+            devtype: evr230
             iocinit:
               - name: "Pul0-Width-SP"
                 value: "0"
@@ -857,18 +842,18 @@ epicsConfiguration:
 
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
-    - name: "mrf-diag-delay"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=119372"
+    - name: "plelievrkey001"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
-      iocprefix: "LEL:TIM"
+      iocprefix: "LEL"
       devtype: evr230
       iocdir: "cosylabioc"
       devgroup: timing
-      host: "10.16.4.62" ## plelievrkey001
-      workdir: "/opt/codac-4.1/apps/elinp-gp04-ioc17/epik8s-mrf"
+      host: "10.16.4.25" 
+      workdir: "/opt/codac-4.1/apps/elinp-gp08-ioc06/epik8s-delay"
       exec: "start.sh"
-      iocbin: "../bin/linux-x86_64/elinp-gp04-ioc17"
-      iocfunc: "elinp_gp04_ioc17"
+      iocbin: "../bin/linux-x86_64/elinp-gp08-ioc06"
+      iocfunc: "elinp_gp08_ioc06"
       autosync: false
       nfsMounts:
       - name: data
@@ -890,8 +875,19 @@ epicsConfiguration:
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       devices:
-        evr:
-          - name: "EVR-BPMCAM"
+          - name: "DIA:FCT01"
+            devtype: "m9210"
+            dev: "PCI::INSTR0"
+            buffer: 2059
+            eventpv: ":Event-1-Cnt-I"
+            iocinit:
+          - name: "DIA:FCT02"
+            devtype: "m9210"
+            dev: "PCI::INSTR1"
+            buffer: 2059
+            iocinit:
+          - name: "TIM:EVR-BPMCAM"
+            devtype: evr230
             bus: 9
             slot: 9
             func: 0
@@ -948,7 +944,8 @@ epicsConfiguration:
                 value: "62.08"
               - name: "Ena-Sel"
                 value: "Enabled"
-          - name: "EVR-CAM"
+          - name: "TIM:EVR-CAM"
+            devtype: evr230
             bus: 9
             slot: 10
             func: 0
@@ -1005,7 +1002,8 @@ epicsConfiguration:
                 value: "62.08"
               - name: "Ena-Sel"
                 value: "Enabled"
-          - name: "EVR-ADC"
+          - name: "TIM:EVR-ADC"
+            devtype: evr230
             bus: 9
             slot: 11
             func: 0
@@ -1062,21 +1060,21 @@ epicsConfiguration:
                 value: "62.08"
               - name: "Ena-Sel"
                 value: "Enabled"
-        
-          
+
+ 
+
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
-
-
-    - name: "mrf-evg"
+    
+    - name: "plelievg001-evg"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=113217"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocprefix: "LEL:TIM"
-      devtype: mrf230
+      devtype: evg230
       iocdir: "cosylabioc"
       devgroup: timing
       host: "10.16.4.23" ## plelievg001
-      workdir: "/opt/codac-4.1/apps/elinp-gp09-ioc01/iocBoot/epik8s"
+      workdir: "/opt/codac-4.1/apps/elinp-gp09-ioc01/iocBoot/epik8s-evg"
       exec: "start.sh"
       iocbin: "../../bin/linux-x86_64/elinp-gp09-ioc01"
       iocfunc: "elinp_gp09_ioc01"
@@ -1101,11 +1099,11 @@ epicsConfiguration:
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       devices:
-        evg:
           - name: "TMG"
             bus: 9
             slot: 9 
             func: 0
+            devtype: evg230
             iocinit:
               - name: "EvtClk-Source-Sel" ## Event Clock, external (MHz)
                 value: "RF"
@@ -1127,52 +1125,53 @@ epicsConfiguration:
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
 
-    - name: "key-gp08"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
-      devtype: m9210
-      devgroup: adc
-      host: "10.16.4.62"
-      workdir: "/opt/codac-4.1/apps/elinp-gp04-ioc17/epik8s-key"
-      iocbin: "../bin/linux-x86_64/elinp-gp04-ioc17"
-      iocfunc: "elinp_gp04_ioc17"
-      exec: "start.sh"
-      iocdir: "cosylabioc"
-      autosync: false
-      nfsMounts:
-      - name: data
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/data
-        mountPath: /nfs/data
-        opt: "-o credentials=/etc/smbcredentials"
-        type: "cifs"
-      - name: autosave
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/autosave
-        mountPath: /nfs/autosave
-        opt: "-o credentials=/etc/smbcredentials"
-        type: "cifs"
-      - name: config
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/config
-        mountPath: /nfs/config
-        opt: "-o credentials=/etc/smbcredentials"
-        type: "cifs"
-      iocprefix: "LEL:DIA"
-      devices:
-        m9210:
-          - name: "FCT01"
-            dev: "PCI::INSTR0"
-            buffer: 2059
-            eventpv: ":Event-1-Cnt-I"
-            iocinit:
-          - name: "FCT02"
-            dev: "PCI::INSTR1"
-            buffer: 2059
-            iocinit:
+    # - name: "plelievrkey001-adc"
+    #   asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
+    #   charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+    #   devtype: m9210
+    #   devgroup: adc
+    #   host: "10.16.4.25"
+    #   workdir: "/opt/codac-4.1/apps/elinp-gp08-ioc06/epik8s-key"
+    #   iocbin: "../bin/linux-x86_64/elinp-gp08-ioc06"
+    #   iocfunc: "elinp_gp08_ioc06"
+    #   exec: "start.sh"
+    #   iocdir: "cosylabioc"
+    #   autosync: false
+    #   nfsMounts:
+    #   - name: data
+    #     server: "192.168.197.157"
+    #     path: /data_epik8s/eli/data
+    #     mountPath: /nfs/data
+    #     opt: "-o credentials=/etc/smbcredentials"
+    #     type: "cifs"
+    #   - name: autosave
+    #     server: "192.168.197.157"
+    #     path: /data_epik8s/eli/autosave
+    #     mountPath: /nfs/autosave
+    #     opt: "-o credentials=/etc/smbcredentials"
+    #     type: "cifs"
+    #   - name: config
+    #     server: "192.168.197.157"
+    #     path: /data_epik8s/eli/config
+    #     mountPath: /nfs/config
+    #     opt: "-o credentials=/etc/smbcredentials"
+    #     type: "cifs"
+    #   iocprefix: "LEL:DIA"
+    #   devices:
+    #       - name: "FCT01"
+    #         devtype: "m9210"
+    #         dev: "PCI::INSTR0"
+    #         buffer: 2059
+    #         eventpv: ":Event-1-Cnt-I"
+    #         iocinit:
+    #       - name: "FCT02"
+    #         devtype: "m9210"
+    #         dev: "PCI::INSTR1"
+    #         buffer: 2059
+    #         iocinit:
 
-      ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
-      scpoptions: "-O"
+    #   ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+    #   scpoptions: "-O"
 
     - name: "polrev-icpdas01"
       asset: "https://confluence.infn.it/x/nYD8DQ"

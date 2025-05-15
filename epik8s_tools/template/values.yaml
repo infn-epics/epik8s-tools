@@ -331,18 +331,18 @@ epicsConfiguration:
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "TST"
       iocroot: "ICP{{ "%02d" % i }}"
-      iocdir: "icpdas"
-      devtype: icp7215
+      template: "icpdas"
+      devtype: temp
       devgroup: temp
-      autosync: true
-      gitinit: true
+      autosync: false
       opi: icpdas
       iocparam:
         - name: "server"
           value: icpdasrtd01.simulator-euaps.svc
-      temp:
+      devices:
       {%- for k in range(1, 7) %}
         - name: "TEMP{{ "%02d" % k }}"
+          devtype: temp
           idx: {{k}}
           high: 80
           low: 10
@@ -353,19 +353,14 @@ epicsConfiguration:
       {%- endfor %}
 
   {% endfor %}
-{% for i in range(1, vcams + 1) %}
-    - name: "cam-sim{{ "%02d" % i }}"
+    - name: "camerasim}"
       asset: "Simulate a camera with beam X={{ 250 + (i - 1) * 25 }},Y={{ 200 + (i - 1) * 20 }} DX={{ 70 + (i - 1) * 7 }} DY={{ 50 + (i - 1) * 5 }}"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocdir: "camera"
-      autosync: true ## restart automatically on changes
-      devtype: camerasim
+      autosync: false ## restart automatically on changes
       pva: true
-      gitinit: true
+      template: "adcamera"
       devgroup: diag
-      opi: "camera"    
       iocprefix: "TST"
-      iocroot: "CAM{{ "%02d" % i }}"
       iocparam:
         - name: "CAMERA_TYPE"
           value: "Int8"
@@ -377,24 +372,30 @@ epicsConfiguration:
           value: "1024"
         - name: "CAMERA_STATS_YSIZE"
           value: "768"
-      iocinit:
-        - name: "AcquirePeriod"
-          value: "1"
-        - name: "Gain"
-          value: "255"
-        - name: "SimMode"
-          value: "Peaks"
-        - name: "PeakStartX"
-          value: "{{ 250 + (i - 1) * 25 }}"
-        - name: "PeakStartY"
-          value: "{{ 200 + (i - 1) * 20 }}"
-        - name: "PeakWidthX"
-          value: "{{ 70 + (i - 1) * 7 }}"
-        - name: "PeakWidthY"
-          value: "{{ 50 + (i - 1) * 5 }}"
-        - name: "PeakVariation"
-          value: "{{ 10 + (i - 1) * 1 }}"
-{% endfor %}
+        
+      devices:
+      {% for i in range(1, vcams + 1) %}
+        - name: CAM{{ "%02d" % i }}
+          devtype: camerasim
+          opi: "camera" 
+          iocinit:
+          - name: "AcquirePeriod"
+            value: "1"
+          - name: "Gain"
+            value: "255"
+          - name: "SimMode"
+            value: "Peaks"
+          - name: "PeakStartX"
+            value: "{{ 250 + (i - 1) * 25 }}"
+          - name: "PeakStartY"
+            value: "{{ 200 + (i - 1) * 20 }}"
+          - name: "PeakWidthX"
+            value: "{{ 70 + (i - 1) * 7 }}"
+          - name: "PeakWidthY"
+            value: "{{ 50 + (i - 1) * 5 }}"
+          - name: "PeakVariation"
+            value: "{{ 10 + (i - 1) * 1 }}"
+      {% endfor %}
 
 {% if vdip or vqua  or vcor %}
     - name: "unimag"

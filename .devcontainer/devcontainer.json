@@ -2,7 +2,7 @@
 {
     "name": "python container",
     
-    "image": "baltig.infn.it:4567/epics-containers/epics-py-base",
+    "image": "ghcr.io/infn-epics/infn-epics-ioc-runtime:latest",
     "remoteEnv": {
         // allows X11 apps to run inside the container
         "DISPLAY": "${localEnv:DISPLAY}",

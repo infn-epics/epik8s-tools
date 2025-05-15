@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: RUN IOC",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "tests/eli_values.yaml",
+                    "camerasim",
+                    "--native",
+                    "--workdir", "/tmp"
+                   // "--services","diag-tml","gateway","cam01"
+                    //"vgcon01","vgcon02","vpcon17","vpcon19",
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: COMPOSE ELI",
             "type": "python",
             "request": "launch",
