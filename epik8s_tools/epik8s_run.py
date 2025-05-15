@@ -105,22 +105,35 @@ def main_run():
         description="Run IOC from a given YAML configuration",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("yaml_file", help="Path to the Configuration EPIK8S beamline YAML.")
-    parser.add_argument("iocnames", nargs='+', help="Name of the iocs to run")
+    parser.add_argument("yaml_file", nargs="?", help="Path to the Configuration EPIK8S beamline YAML.")
+    parser.add_argument("iocnames", nargs="*", help="Name of the iocs to run")
 
     parser.add_argument("--version", action="store_true", help="Show the version and exit")
     parser.add_argument("--native", action="store_true", help="Don't use Docker to run, run inside")
     parser.add_argument("--image", default="ghcr.io/infn-epics/infn-epics-ioc-runtime:latest", help="Use Docker image to run")
     parser.add_argument("--workdir", default=".", help="Working directory")
-    parser.add_argument("--dockeropt", default="", help="Additional Docker options")
+    parser.add_argument("--platform", default="linux/amd64", help="Docker image platform")
+    parser.add_argument("--network", default="", help="Docker network")
+
     parser.add_argument("--caport", default="5064", help="Base port to use for CA")
     parser.add_argument("--pvaport", default="5075", help="Base port to use for PVA")
 
     args = parser.parse_args()
 
+    # Handle --version flag early
     if args.version:
         print(f"epik8s-tools version {__version__}")
-        return
+        exit(0)
+
+    # Validate positional arguments
+    if not args.yaml_file:
+        print("Error: The 'yaml_file' argument is required.")
+        exit(1)
+
+    if not args.iocnames:
+        print("Error: At least one IOC name must be specified.")
+        exit(1)
+
     if not os.path.isfile(args.yaml_file):
         print(f"# yaml configuration {args.yaml_file} does not exists")
         exit(1)
@@ -197,23 +210,38 @@ def main_run():
         iocrun(iocrunlist, args)
     else:
         # Run Docker with the specified parameters
-        docker_command = [
-            "docker", "run", "--rm",
+        yaml_file_abs_path = os.path.abspath(args.yaml_file)  # Convert to absolute path
+        
+        # Build Docker arguments dynamically
+        docker_args = [
+            "docker", "run", "--rm", "-it",
+            "--platform", args.platform,
             "-v", f"{os.path.abspath(args.workdir)}:/workdir",
-            "-v", f"{args.yaml_file}:/tmp/epik8s-config.yaml",
-            "-p", f"{args.caport}:5064",  # Map CA port
-            "-p", f"{args.pvaport}:5075",  # Map PVA port
-            args.dockeropt,
+            "-v", f"{yaml_file_abs_path}:/tmp/epik8s-config.yaml"
+        ]
+
+        # Add network option if specified, otherwise map ports
+        if args.network:
+            docker_args.extend(["--network", args.network])
+        else:
+            docker_args.extend([
+                "-p", f"{args.caport}:{args.caport}",  # Map CA port
+                "-p", f"{args.pvaport}:{args.pvaport}"  # Map PVA port
+            ])
+
+        # Add remaining Docker arguments
+        docker_args.extend([
             args.image,
             "epik8s-run",  # Run the same script inside Docker
             "/tmp/epik8s-config.yaml",
             *args.iocnames,
             "--workdir", "/workdir",
             "--native"
-        ]
+        ])
 
-        print(f"* Running Docker command: {' '.join(docker_command)}")
-        result = subprocess.run(docker_command)
+        # Print and execute the Docker command
+        print(f"* Running Docker command: {' '.join(docker_args)}")
+        result = subprocess.run(docker_args)
 
         if result.returncode != 0:
             print("Error: Failed to run the IOC in Docker.")
