@@ -58,9 +58,12 @@ def generate_readme(values, dir, output_file):
 ## run jnjrender  /epics/support/ibek-templates/ config/iocname-config.yaml --output iocname-ibek.yaml
 def iocrun(iocs, appargs):
     config_dir = "/epics/ioc/config"
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-        print(f"* Created configuration directory: {config_dir}")
+    if os.path.exists(config_dir):
+        shutil.rmtree(config_dir)  # Remove the directory and its contents
+        print(f"* Removed existing directory: {config_dir}")
+
+    os.makedirs(config_dir)
+    print(f"* Created configuration directory: {config_dir}")
 
     for ioc in iocs:
         ioc_name = ioc['name']
@@ -150,6 +153,10 @@ def main_run():
             if ioc_name == ioc['name']:
                 ## add iocname
                 ioc['iocname']=ioc_name
+                ioc['config_dir']=args.workdir
+                ioc['data_dir']=args.workdir
+                ioc['autosave_dir']=args.workdir
+
                 ## unroll iocparam
                 if 'iocparam' in ioc:
                     for p in ioc['iocparam']:
@@ -210,4 +217,4 @@ def main_run():
             exit(result.returncode)
 
 if __name__ == "__main__":
-    main()
+    main_run()
