@@ -200,12 +200,15 @@ def main_run():
         docker_command = [
             "docker", "run", "--rm",
             "-v", f"{os.path.abspath(args.workdir)}:/workdir",
-            "-w", "/workdir",
+            "-v", f"{args.yaml_file}:/tmp/epik8s-config.yaml",
+            "-p", f"{args.caport}:5064",  # Map CA port
+            "-p", f"{args.pvaport}:5075",  # Map PVA port
             args.dockeropt,
             args.image,
-            os.path.basename(__file__),  # Run the same script inside Docker
-            args.yaml_file,
+            "epik8s-run",  # Run the same script inside Docker
+            "/tmp/epik8s-config.yaml",
             *args.iocnames,
+            "--workdir", "/workdir",
             "--native"
         ]
 
