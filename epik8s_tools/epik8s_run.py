@@ -97,7 +97,7 @@ def iocrun(iocs, appargs):
 
 import shutil  # Ensure shutil is imported for checking application availability
 
-def main():
+def main_run():
     parser = argparse.ArgumentParser(
         description="Run IOC from a given YAML configuration",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
