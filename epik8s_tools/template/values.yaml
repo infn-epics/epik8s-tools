@@ -353,8 +353,7 @@ epicsConfiguration:
       {%- endfor %}
 
   {% endfor %}
-    - name: "camerasim}"
-      asset: "Simulate a camera with beam X={{ 250 + (i - 1) * 25 }},Y={{ 200 + (i - 1) * 20 }} DX={{ 70 + (i - 1) * 7 }} DY={{ 50 + (i - 1) * 5 }}"
+    - name: "camerasim"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       autosync: false ## restart automatically on changes
       pva: true
@@ -378,6 +377,8 @@ epicsConfiguration:
         - name: CAM{{ "%02d" % i }}
           devtype: camerasim
           opi: "camera" 
+          asset: "Simulate a camera with beam X={{ 250 + (i - 1) * 25 }},Y={{ 200 + (i - 1) * 20 }} DX={{ 70 + (i - 1) * 7 }} DY={{ 50 + (i - 1) * 5 }}"
+
           iocinit:
           - name: "AcquirePeriod"
             value: "1"
