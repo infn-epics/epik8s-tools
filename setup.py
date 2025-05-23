@@ -24,7 +24,7 @@ setup(
     },
     install_requires=[
         
-        'pyyaml','Jinja2','phoebusgen'
+        'pyyaml','Jinja2','phoebusgen','jnjrender'
         
         # Add any external dependencies here
     ],

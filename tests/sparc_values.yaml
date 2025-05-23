@@ -34,7 +34,6 @@ epicsConfiguration:
       auto_security: true
       gitinit: true
       autosync: true ## restart automatically on changes
-      staticIp: true
       resources:
             limits:
               cpu: 999m
@@ -54,7 +53,6 @@ epicsConfiguration:
       auto_security: true
       gitinit: true
       autosync: true ## restart automatically on changes
-      staticIp: true
       resources:
             limits:
               cpu: 999m
@@ -341,6 +339,7 @@ epicsConfiguration:
       ssh_options: "-o PubkeyAcceptedKeyTypes=+ssh-rsa"
       workdir: "/opt/epik8s-sparc"
       exec: "start.sh"
+      pva: false
       devices:
         - name: "ad1"
           channel: 3
@@ -361,6 +360,7 @@ epicsConfiguration:
       ssh_options: "-o PubkeyAcceptedKeyTypes=+ssh-rsa"
       workdir: "/opt/epik8s-sparc"
       exec: "start.sh"
+      pva: false
       devices:
         - name: "ad1"
           channel: 3
@@ -379,6 +379,7 @@ epicsConfiguration:
       ssh_options: "-o PubkeyAcceptedKeyTypes=+ssh-rsa"
       workdir: "/opt/epik8s-sparc"
       exec: "start.sh"
+      pva: false
       devices:
         - name: "ad1"
           channel: 3
@@ -398,6 +399,8 @@ epicsConfiguration:
       workdir: "/opt/epik8s-sparc"
       exec: "start.sh"
       autosync: false
+      pva: false
+
       devices:
         - name: "ad1"
           channel: 3
@@ -541,15 +544,15 @@ epicsConfiguration:
       autosync: false ## restart automatically on changes
       usegateway: false
 
-    - name: "vacimport"
+    - name: "vuglinac"
       asset: "https://confluence.infn.it/x/nYD8DQ"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
 #      image: baltig.infn.it:4567/epics-containers/epics-py-base
-      iocprefix: "SPARC:VAC"
+      iocprefix: "SPARC:LINAC:VAC"
       iocdir: "mem2epics"
       iocparam:
         - name: "configuration"
-          value: "vac.json"
+          value: "vaclinac.json"
         - name: "server"
           value: "plsparcmem001.lnf.infn.it"
         
@@ -692,6 +695,7 @@ epicsConfiguration:
       devtype: bpm
       devgroup: diag
       iocprefix: "PLXSPE"
+      pva: false
       devices:
         - name: "PLXBPM07"
           channel: 3
@@ -709,16 +713,17 @@ epicsConfiguration:
       autosync: false ## restart automatically on changes
 
     - name: "bdsparcac1bpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
-      iocdir: "libera-sppp"
+      template: "libera-sppp"
       devtype: bpm
       devgroup: diag
       iocprefix: "AC1BPM01"
       host: "bdsparcac1bpm001.lnf.infn.it"
       ssh_options: "-o KexAlgorithms=diffie-hellman-group1-sha1 -o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
-      workdir: "/opt/sparc"
+      workdir: "/opt/sparc-testone"
       exec: "start.sh"
       autosync: true ## restart automatically on changes
       initcmd: "mount -o remount,rw /"
@@ -743,6 +748,7 @@ epicsConfiguration:
         
 
     - name: "bdsparcac2bpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -776,6 +782,7 @@ epicsConfiguration:
           value: "300"
 
     - name: "bdsparcac3bpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -809,6 +816,7 @@ epicsConfiguration:
           value: "300"
 
     - name: "bdsparcptlbpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -843,6 +851,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcutlbpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -876,6 +885,7 @@ epicsConfiguration:
           value: "500"
 
     - name: "bdsparcdglbpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -909,6 +919,7 @@ epicsConfiguration:
           value: "500"
 
     - name: "bdsparcdglbpm002"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -942,6 +953,7 @@ epicsConfiguration:
           value: "500"
 
     - name: "bdsparcdglbpm003"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -976,6 +988,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm001"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1010,6 +1023,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm002"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1044,6 +1058,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm003"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1078,6 +1093,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm004"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1112,6 +1128,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm005"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1146,6 +1163,7 @@ epicsConfiguration:
 
 
     - name: "bdsparcplxbpm006"
+      pva: false
       asset: "https://confluence.infn.it/x/doKBBg"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
       iocdir: "libera-sppp"
@@ -1421,7 +1439,7 @@ epicsConfiguration:
         - name: "port"
           value: 4002
       devices:
-          - name: "KLYC:VAC:RFDSIP01"
+          - name: "LINAC:VAC:RFDSIP01"
             channel: 0x85
           - name: "LINAC:VAC:PTLSIP01"
             channel: 0x86
@@ -1700,8 +1718,8 @@ epicsConfiguration:
             channel: 0x9D
           - name: "SBN:VAC:SBNSIP03"
             channel: 0x9E      
-          - name: "KLY2:VAC:W2BSIP02" ## not working remote, 
-            channel: 0x98
+          # - name: "KLY2:VAC:W2BSIP02" ## not working remote, 
+          #  channel: 0x98
 
     - name: "hv" 
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=32&typeId=1444&objectId=129573"
@@ -1867,6 +1885,24 @@ epicsConfiguration:
                 value: 2.0
               - name: DlyGen8Label-I
                 value: "MCP gate"
+              - name: DlyGen0EvtTrig0-SP
+                value: 1
+              - name: DlyGen1EvtTrig0-SP
+                value: 3
+              - name: DlyGen2EvtTrig0-SP
+                value: 1
+              - name: DlyGen3EvtTrig0-SP
+                value: 1
+              - name: DlyGen4EvtTrig0-SP
+                value: 1
+              - name: DlyGen5EvtTrig0-SP
+                value: 1
+              - name: DlyGen6EvtTrig0-SP
+                value: 1
+              - name: DlyGen7EvtTrig0-SP
+                value: 1
+              - name: DlyGen8EvtTrig0-SP
+                value: 0
               - name: OutFP0SrcPulse-SP
                 value: "Pulser 4"
               - name: OutFP0Label-I
@@ -1955,6 +1991,26 @@ epicsConfiguration:
                 value: 500.0
               - name: DlyGen7Label-I
                 value: "Discharge Scope"
+              - name: DlyGen0EvtTrig0-SP
+                value: 17
+              - name: DlyGen1EvtTrig0-SP
+                value: 17
+              - name: DlyGen2EvtTrig0-SP
+                value: 17
+              - name: DlyGen3EvtTrig0-SP
+                value: 17
+              - name: DlyGen4EvtTrig0-SP
+                value: 17
+              - name: DlyGen5EvtTrig0-SP
+                value: 17
+              - name: DlyGen6EvtTrig0-SP
+                value: 2
+              - name: DlyGen7EvtTrig0-SP
+                value: 17
+              - name: In0CodeExt-SP
+                value: 17
+              - name:  In0TrigExt-Sel
+                value: 2 ## Edge
               - name: OutFP0SrcPulse-SP
                 value: "Pulser 5"
               - name: OutFP0Label-I
@@ -2454,7 +2510,7 @@ epicsConfiguration:
       stats_enable: true
       proc_enable: true
       overlay_enable: true
-      pva: true
+      
       iocprefix: "SPARC:CAM"
       autosync: false ## restart automatically on changes
       iocinit:
@@ -2501,7 +2557,7 @@ epicsConfiguration:
     #   iocdir: "camera"
     #   autosync: false ## restart automatically on changes
     #   devtype: camerasim
-    #   pva: true
+    #   
     #   gitinit: true
     #   devgroup: diag
     #   opi: "camera"
@@ -2551,7 +2607,7 @@ epicsConfiguration:
     #   iocroot: "ACE01"
     #   autosync: false ## restart automatically on changes
     #   
-    #   pva: true
+    #   
     #   iocparam:
     #     - name: "CAMERA_ID"
     #       value: "Basler-a2A2600-20gmBAS-40437926"
@@ -2576,7 +2632,7 @@ epicsConfiguration:
       devgroup: test
       iocprefix: "SPARC:CAM"
       iocdir: "camera-array"
-      pva: true
+      
       targetRevision: portforward
       networks:
         - name: "gigevision-client"
@@ -2641,7 +2697,7 @@ epicsConfiguration:
           ip: 192.168.110.3
       #ca_server_port: 5164 #5064 5065
       # pva_server_port: 5176 #5075 5076
-      pva: true
+      
       targetRevision: portforward
       docker:
         enable: true
@@ -2699,7 +2755,7 @@ epicsConfiguration:
           ip: 192.168.110.4
       #ca_server_port: 5164 #5064 5065
       # pva_server_port: 5176 #5075 5076
-      pva: true
+      
       targetRevision: portforward
       docker:
         enable: true
@@ -2758,7 +2814,7 @@ epicsConfiguration:
           ip: 192.168.110.5
       #ca_server_port: 5164 #5064 5065
       # pva_server_port: 5176 #5075 5076
-      pva: true
+      
       targetRevision: portforward
       docker:
         enable: true
@@ -2951,3 +3007,15 @@ nfsMounts:
       path: /data_epik8s/config
       mountPath: /nfs/config
       opt: "-o nolock"
+
+email:
+  from: "phoebus@localhost"
+  to: "phoebus@localhost"
+  smtp:
+    host: smtp.lnf.infn.it
+    port: 25
+    user: ""
+    password: ""
+    tls: false
+    starttls: false
+    auth: false

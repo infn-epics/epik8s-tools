@@ -10,6 +10,209 @@ from datetime import datetime
 from epik8s_tools.epik8s_version import __version__
 import subprocess  # For running Docker commands
 
+def copytree(template_dir, config_dir):
+    for item in os.listdir(template_dir):
+        s = os.path.join(template_dir, item)
+        d = os.path.join(config_dir, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, False, None)
+        else:
+            shutil.copy2(s, d)
+    
+def gitconfig(config: dict) -> str:
+    url = config["gitRepoConfig"]["url"]
+    path = config["gitRepoConfig"].get("path", "")
+    branch = config["gitRepoConfig"].get("branch", "")
+    token = config["gitRepoConfig"].get("token", "")
+
+    lines = [
+        "set -e  # Exit immediately if a command fails",
+        "id=$(id)",
+        "cd /pvc",
+        "rm -rf *",
+        "prefix=\"\"",
+        f"echo \"ID $id cloning: {url} {path} revision {branch}\"",
+        "if [ -d temp-config ]; then",
+        "  rm -rf temp-config",
+        "fi"
+    ]
+
+    if token:
+        lines.append("git config --global credential.helper \"store --file=/.ssh/git_token\"")
+    else:
+        lines.append("echo \"Cloning repository unauthenticated\"")
+
+    if branch:
+        lines.append(f"git clone --depth 1 -b {branch} {url} --recurse-submodules temp-config")
+    else:
+        lines.append(f"git clone --depth 1 {url} --recurse-submodules temp-config")
+
+    lines.append(f"if [ -d temp-config/{path} ]; then")
+    if path == ".":
+        lines.append("  mv temp-config/* /pvc/")
+    else:
+        lines.append(f"  mv temp-config/{path}/* /pvc/")
+        lines.append("  rm -rf temp-config")
+    lines.append("else")
+    lines.append("  mv temp-config/* /pvc/")
+    lines.append("fi")
+
+    return "\n".join(lines)
+
+
+def run_remote(config: dict,source_dir,tmpwork) -> str:
+    def get(d, path, default=None):
+        keys = path.split(".")
+        for k in keys:
+            if isinstance(d, dict) and k in d:
+                d = d[k]
+            else:
+                return default
+        return d
+          
+    ca_server_port = str(get(config, "ca_server_port", 5064))
+    pva_server_port = str(get(config, "pva_server_port", 5075))
+    sshforward = ""
+    if get(config, "forwardca"):
+        sshforward = f"-L 0.0.0.0:5064:localhost:{ca_server_port}"
+    if get(config, "pva"):
+        sshforward = f"-L 0.0.0.0:5075:localhost:{pva_server_port}"
+
+    caserverport_bcast = str(int(ca_server_port) + 1)
+    pvaserverport_bcast = str(int(pva_server_port) + 1)
+
+    dockeropt = "-it"
+    dockerenv = ""
+    lines = [
+        "cd ~; id",
+        f"caserverport={ca_server_port}",
+        f"pvaserverport={pva_server_port}",
+        f"sshforward=\"{sshforward}\"",
+        f"caserverport_bcast=$(expr $caserverport + 1)",
+        f"pvaserverport_bcast=$(expr $pvaserverport + 1)",
+        f"echo \"EPICS_CA_SERVER_PORT=$caserverport\"",
+        f"echo \"EPICS_CA_REPEATER_PORT=$caserverport_bcast\"",
+        f"echo \"EPICS_PVAS_SERVER_PORT=$pvaserverport\"",
+        f"echo \"EPICS_PVAS_BROADCAST_PORT=$pvaserverport_bcast\""
+    ]
+
+    networks = get(config, "networks", [])
+    if networks:
+        for net in networks:
+            lines.append(f"echo \"* adding {net['annotation']}\"")
+            if "ip" in net:
+                dockeropt += f" --network {net['annotation']} --ip {net['ip']}"
+            else:
+                dockeropt += f" --network {net['annotation']}"
+    elif get(config, "docker.hostnet"):
+        lines.append("echo \"* enabling host network\"")
+        dockeropt += " --network host"
+        dockerenv = (
+            f"-e EPICS_CA_SERVER_PORT={ca_server_port} "
+            f"-e EPICS_CA_REPEATER_PORT={caserverport_bcast} "
+            f"-e EPICS_PVAS_INTF_LIST=127.0.0.1 "
+            f"-e EPICS_PVAS_SERVER_PORT={pva_server_port} "
+            f"-e EPICS_PVAS_BROADCAST_PORT={pvaserverport_bcast}"
+        )
+    else:
+        dockeropt += (
+            f" -p {ca_server_port}:5064/tcp -p {ca_server_port}:5064/udp "
+            f"-p {caserverport_bcast}:5065/tcp -p {caserverport_bcast}:5065/udp "
+            f"-p {pva_server_port}:5075/tcp -p {pva_server_port}:5075/udp "
+            f"-p {pvaserverport_bcast}:5076/tcp -p {pvaserverport_bcast}:5076/udp"
+        )
+
+    options = "-o StrictHostKeyChecking=no"
+    dockermount = "-v .:/epics/ioc/config"
+
+    ssh_opts = get(config, "ssh_options", "")
+    if ssh_opts:
+        options += f" {ssh_opts}"
+
+    initcmd = get(config, "ssh.initcmd")
+    if initcmd:
+        lines.append(f"echo \"* Performing initcmd \\\"{initcmd}\\\"\"")
+        lines.append(f"ssh {options} {config['ssh']['user']}@{config['ssh']['host']} \"{initcmd}\"")
+
+    lines.append(f"echo \"* path {get(config, 'gitRepoConfig.path', '')}\"")
+
+    for mount in get(config, "nfsMounts", []):
+        mount_path = mount["mountPath"]
+        dockermount = f"-v \"{mount_path}\":\"{mount_path}\" {dockermount}"
+
+
+
+    
+    ssh_user = config.get("user","root")
+    ssh_host = config["host"]
+    exec_cmd = config.get("exec", "./start.sh")
+    print(f"* remote execution on {ssh_host}")
+
+    workdir = config.get("workdir",f"workdir-{config['iocname']}")
+    lines.append(f"echo \"* try connecting ssh {options} {ssh_user}@{ssh_host} mkdir -p {workdir}\"")
+    lines.append(f"""if ssh {options} {ssh_user}@{ssh_host} "rm -rf {workdir};mkdir -p {workdir}"; then
+  echo "* created workdir {workdir}"
+else
+  echo "## error creating {workdir} aborting.."
+  exit 1
+fi""")
+
+    scpopt = config.get("scpoptions", "")
+    lines.append(f"""echo "* scp {options} {scpopt} -r {source_dir}/* {ssh_user}@{ssh_host}:{workdir}"
+if scp {options} {scpopt} -r {source_dir}/* {ssh_user}@{ssh_host}:{workdir}; then
+  echo "* copied {source_dir}"
+else
+  echo "## error copying {source_dir}"
+  exit 1
+fi""")
+
+    if get(config, "nfsMounts"):
+        lines.append("echo \"* Performing mounts\"")
+        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"{workdir}/nfsmount.sh\"")
+
+    envstr = f"export __IOC_TOP__=\"{workdir}\" && export __IOC_PREFIX__=\"{config.get('iocprefix', '')}\" && export __IOC_NAME__=\"{config.get('iocname', '')}\""
+    for env in config.get("env", []):
+        envstr += f" && export {env['name']}=\"{env['value']}\""
+        dockerenv += f" -e {env['name']}={env['value']}"
+
+    if get(config, "docker.enable"):
+        docker_args = get(config, "docker.args")
+        if docker_args:
+            dockeropt = docker_args
+            lines.append(f"echo \"User options {docker_args}\"")
+
+        options += " -t"
+        image = config["docker"]["image"]
+        iocname = config["iocname"]
+        rundocker = f"docker run --rm --name {iocname}  {dockermount} {dockerenv} {dockeropt} {image}"
+        lines.append(f"echo \"* killing {iocname} docker  (if any)\"")
+        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"docker kill {iocname};docker rm {iocname}\"")
+        lines.append("sleep 1")
+        lines.append(f"echo \"* pulling {image}\"")
+        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"docker pull {image}\"")
+        lines.append(f"echo \"* Running Docker '{rundocker}'\"")
+        lines.append(f"ssh {options} {sshforward} {ssh_user}@{ssh_host} \"cd {workdir} && {rundocker}\"")
+    else:
+        lines.append(f"echo \"* Running Remotely {exec_cmd} workdir {workdir}\"")
+        lines.append(f"echo \"* Passing Environment {envstr}\"")
+        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"cd {workdir} && {envstr} && ./{exec_cmd}\"")
+
+    lines.append("echo \"## Exiting..\"")
+    lines.append("exit 1")
+    
+    # Write the lines to a shell script
+    script_path = f"{tmpwork}/run.sh"
+    with open(script_path, "w") as f:
+        f.write("#!/bin/bash\n")
+        f.write("\n".join(lines))
+    os.chmod(script_path, 0o755)  # Make the script executable
+
+    # Execute the script
+    print(f"* Connecting to executing script: {script_path}")
+    result = subprocess.run([script_path])
+
+    return result.returncode
+
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(os.path.dirname(template_path)))
@@ -64,7 +267,7 @@ def iocrun(iocs, appargs):
 
     os.makedirs(config_dir)
     print(f"* Created configuration directory: {config_dir}")
-
+    ibek_count = 0
     for ioc in iocs:
         ioc_name = ioc['name']
         config_file = os.path.join(appargs.workdir, f"{ioc_name}-config.yaml")
@@ -74,28 +277,73 @@ def iocrun(iocs, appargs):
         with open(config_file, 'w') as file:
             yaml.dump(ioc, file, default_flow_style=False)
         print(f"* Created configuration file: {config_file}")
+        if 'template' in ioc:
+            # Find template.yaml.j2 recursively in /epics/support/ibek-templates/
+            template_name = ioc['template']+".yaml.j2"
+            template_path = None
+            template_dir = None
+            print(f"Searching '{template_name}' in {appargs.template}")
 
-        # Run jnjrender to generate the output file
-        jnjrender_command = f"jnjrender /epics/support/ibek-templates/ {config_file} --output {output_file}"
-        print(f"* Running command: {jnjrender_command}")
-        result = os.system(jnjrender_command)
+            for root, dirs, files in os.walk(appargs.template):
+                if template_name in files:
+                    template_path = os.path.join(root, template_name)
+                    template_dir = root
+                    break
+            if template_path:
+                ## this is a ibek template
+                # Call jnjrender with the found template file
+                jnjrender_cmd = f"jnjrender {template_dir} {config_file} --output {config_dir}"
+                print(f"* Running command: {jnjrender_cmd}")
+                result = os.system(jnjrender_cmd)
+                if result != 0:
+                    print(f"Error: Failed to run jnjrender with template for IOC '{ioc_name}'.")
+                    exit(1)
+                else:
+                    print(f"* Successfully generated ibek instance in {output_file} from template {template_path}")
+                    
+                ibek_count += 1
+                ioc['ibek'] = True
+                continue  # Skip the default jnjrender call below if template was used
+            else:
+                print(f"Searching '{ioc['template']}' in {appargs.template}")
+                ## search directory ioc['template'] in /epics/support/support-templates
+                template_path = None
 
-        if result != 0:
-            print(f"Error: Failed to run jnjrender for IOC '{ioc_name}'.")
+                for root, dirs, files in os.walk(appargs.template):
+                    if ioc['template'] in dirs:
+                        template_path = os.path.join(root, ioc['template'])
+                        template_dir = root
+                        break
+                if template_path:
+                    iocconfig = f"{config_dir}/{ioc_name}"
+                    os.makedirs(iocconfig, exist_ok=True)
+
+                    # Call jnjrender with the found template file
+                    jnjrender_cmd = f"jnjrender {template_path} {config_file} --output {iocconfig}"
+                    print(f"* Running command: {jnjrender_cmd}")
+                    result = os.system(jnjrender_cmd)
+                    if result != 0:
+                        print(f"Error: Failed to run jnjrender with template for IOC '{ioc_name}'.")
+                        exit(1)
+                    else:
+                        print(f"* Successfully generated (template): {iocconfig}")
+                        ## copy the content of template_dir to config_dir
+                        if 'host' in ioc:
+                            run_remote(ioc,iocconfig,appargs.workdir)
+                    continue
+    
+    if ibek_count>0:
+        start_command = ["/epics/ioc/start.sh"]
+        print(f"* Running command: {start_command} with DIR={config_dir}")
+        result = subprocess.run(start_command)
+
+        if result.returncode != 0:
+            print(f"Error: Failed to start IBEK IOC.")
             exit(1)
         else:
-            print(f"* Successfully generated: {output_file}")
+            print(f"* Successfully started IOC.")
     
-    
-    start_command = ["/epics/ioc/start.sh"]
-    print(f"* Running command: {start_command} with DIR={config_dir}")
-    result = subprocess.run(start_command)
-
-    if result.returncode != 0:
-        print(f"Error: Failed to start IOC.")
-        exit(1)
-    else:
-        print(f"* Successfully started IOC.")
+        
     
 
 import shutil  # Ensure shutil is imported for checking application availability
@@ -114,6 +362,7 @@ def main_run():
     parser.add_argument("--workdir", default=".", help="Working directory")
     parser.add_argument("--platform", default="linux/amd64", help="Docker image platform")
     parser.add_argument("--network", default="", help="Docker network")
+    parser.add_argument("--template", default="/epics/support/template", help="Template directory")
 
     parser.add_argument("--caport", default="5064", help="Base port to use for CA")
     parser.add_argument("--pvaport", default="5075", help="Base port to use for PVA")
@@ -191,7 +440,7 @@ def main_run():
         print(f"* Created working directory: {args.workdir}")
     # Check for native mode requirements
     if args.native:
-        required_directories = ["/epics/epics-base/", "/epics/ibek-defs/", "/epics/support/ibek-templates/"]
+        required_directories = ["/epics/epics-base/", "/epics/ibek-defs/", f"{args.template}"]
         required_apps = ["ibek", "jnjrender","/epics/ioc/start.sh"]
 
         # Check if required directories exist
