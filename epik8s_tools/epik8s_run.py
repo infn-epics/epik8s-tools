@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader,Template
 from collections import OrderedDict
 import argparse
 from datetime import datetime
-from epik8s_tools.epik8s_version import __version__
+from epik8s_tools import __version__
 import subprocess  # For running Docker commands
 
 def copytree(template_dir, config_dir):

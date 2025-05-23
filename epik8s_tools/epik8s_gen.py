@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader,Template
 from collections import OrderedDict
 import argparse
 from datetime import datetime
-from epik8s_tools.epik8s_version import __version__
+from epik8s_tools import __version__
 
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""

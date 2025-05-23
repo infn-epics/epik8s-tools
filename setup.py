@@ -4,22 +4,20 @@
 # python3 -m twine upload dist/*
 
 from setuptools import setup, find_packages
-# from epik8s_tools.epik8s_version import __version__
+from epik8s_tools import __version__
 
 setup(
     name="epik8s-tools",
-    version="0.8.7",
+    version=__version__,
     packages=find_packages(),
     include_package_data=True,  # Ensure to include files from MANIFEST.in
 
     entry_points={
         'console_scripts': [
-        'epik8s-gen=epik8s_tools:main',
-        'epik8s-opigen=epik8s_tools:main_opigen',
-        'epik8s-compose=epik8s_tools:main_compose',
-        'epik8s-run=epik8s_tools:main_run'
-
-
+        'epik8s-gen=epik8s_tools.epik8s_gen:main',
+        'epik8s-opigen=epik8s_tools.opigen:main_opigen',
+        'epik8s-compose=epik8s_tools.epik8s_compose:main_compose',
+        'epik8s-run=epik8s_tools.epik8s_run:main_run'
         ],
     },
     install_requires=[

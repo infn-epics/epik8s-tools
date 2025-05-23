@@ -9,7 +9,7 @@ from jinja2 import Template
 
 from phoebusgen import screen as screen
 from phoebusgen import widget as widget
-from epik8s_tools.epik8s_version import __version__
+from epik8s_tools import __version__
 
 def main_opigen():
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
