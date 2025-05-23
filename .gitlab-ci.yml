@@ -80,5 +80,6 @@ pypi-publish:
     - python3 -m twine upload dist/* -u $PYPI_USERNAME -p $PYPI_TOKEN
   only:
     - main  # Optional: Restrict this stage to specific branches
+    - tags
   dependencies:
     - beamline-opi-gen

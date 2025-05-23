@@ -260,13 +260,20 @@ def generate_readme(values, dir, output_file):
 ## create a configuration in appargs.workdir for each ioc listed, for each ioc you should dump ioc as a yaml file as config/iocname-config.yaml
 ## run jnjrender  /epics/support/ibek-templates/ config/iocname-config.yaml --output iocname-ibek.yaml
 def iocrun(iocs, appargs):
-    config_dir = "/epics/ioc/config"
+    config_dir = appargs.configdir
     if os.path.exists(config_dir):
-        shutil.rmtree(config_dir)  # Remove the directory and its contents
-        print(f"* Removed existing directory: {config_dir}")
-
-    os.makedirs(config_dir)
-    print(f"* Created configuration directory: {config_dir}")
+        if appargs.rm:
+            for item in os.listdir(config_dir):
+                item_path = os.path.join(config_dir, item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
+                print(f"* Removed all contents of directory: {config_dir}")
+    else:
+        os.makedirs(config_dir)
+        print(f"* Created configuration directory: {config_dir}")
+        
     ibek_count = 0
     for ioc in iocs:
         ioc_name = ioc['name']
@@ -282,9 +289,9 @@ def iocrun(iocs, appargs):
             template_name = ioc['template']+".yaml.j2"
             template_path = None
             template_dir = None
-            print(f"Searching '{template_name}' in {appargs.template}")
+            print(f"Searching '{template_name}' in {appargs.templatedir}")
 
-            for root, dirs, files in os.walk(appargs.template):
+            for root, dirs, files in os.walk(appargs.templatedir):
                 if template_name in files:
                     template_path = os.path.join(root, template_name)
                     template_dir = root
@@ -305,11 +312,11 @@ def iocrun(iocs, appargs):
                 ioc['ibek'] = True
                 continue  # Skip the default jnjrender call below if template was used
             else:
-                print(f"Searching '{ioc['template']}' in {appargs.template}")
+                print(f"Searching '{ioc['template']}' in {appargs.templatedir}")
                 ## search directory ioc['template'] in /epics/support/support-templates
                 template_path = None
 
-                for root, dirs, files in os.walk(appargs.template):
+                for root, dirs, files in os.walk(appargs.templatedir):
                     if ioc['template'] in dirs:
                         template_path = os.path.join(root, ioc['template'])
                         template_dir = root
@@ -362,7 +369,9 @@ def main_run():
     parser.add_argument("--workdir", default=".", help="Working directory")
     parser.add_argument("--platform", default="linux/amd64", help="Docker image platform")
     parser.add_argument("--network", default="", help="Docker network")
-    parser.add_argument("--template", default="/epics/support/template", help="Template directory")
+    parser.add_argument("--templatedir", default="/epics/support/templates", help="Templates directory")
+    parser.add_argument("--configdir", default="/epics/ioc/config", help="Configuration output directory")
+    parser.add_argument("--rm", action="store_true", help="Remove configuration directory content")
 
     parser.add_argument("--caport", default="5064", help="Base port to use for CA")
     parser.add_argument("--pvaport", default="5075", help="Base port to use for PVA")
@@ -440,7 +449,7 @@ def main_run():
         print(f"* Created working directory: {args.workdir}")
     # Check for native mode requirements
     if args.native:
-        required_directories = ["/epics/epics-base/", "/epics/ibek-defs/", f"{args.template}"]
+        required_directories = ["/epics/epics-base/", "/epics/ibek-defs/", f"{args.templatedir}"]
         required_apps = ["ibek", "jnjrender","/epics/ioc/start.sh"]
 
         # Check if required directories exist
