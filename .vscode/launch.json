@@ -16,7 +16,8 @@
                     "tests/sparc_values.yaml",
                     "bdsparcac1bpm001",
                     "--native",
-                    "--rm"
+                    "--rm",
+                    "--templatedir","tests/templates_dir",
                     "--workdir", "/tmp"
                     
                 ],

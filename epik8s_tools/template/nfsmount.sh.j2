@@ -1,0 +1,45 @@
+#!/bin/sh
+{%- for mount in nfsMounts %}
+moptions=""
+{%- if mount.opt %}
+moptions="{{ mount.opt }}"
+{%- endif %}
+if [ ! -d "{{ mount.mountPath }}" ]; then
+  mkdir -p "{{ mount.mountPath }}"
+fi
+{%- if mount.type %}
+    {%- if mount.type == "nfs" %}
+mount -t nfs $moptions "{{ mount.server }}:{{ mount.path }}" "{{ mount.mountPath }}"
+    {%- elif mount.type == "cifs" %}
+mount -t cifs $moptions "//{{ mount.server }}{{ mount.path }}" "{{ mount.mountPath }}"
+    {%- endif %}
+{%- else %}
+mount -t nfs $moptions "{{ mount.server }}:{{ mount.path }}" "{{ mount.mountPath }}"
+{%- endif %}
+mkdir -p "{{ mount.mountPath }}/{{ iocname }}"
+{%- if mount.name == "config" %}
+cp -rf {{ workdir }}/* {{ mount.mountPath }}/{{ iocname }}
+echo "Start Date: $(date)" > {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- if iocname %}
+echo "IOC Name: {{ iocname }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if asset %}
+echo "IOC Asset: {{ asset }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if template %}
+echo "IOC Template: {{ template }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if devtype %}
+echo "IOC Device Type: {{ devtype }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if devgroup %}
+echo "IOC Device Group: {{ devgroup }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if iocprefix %}
+echo "IOC Prefix: {{ iocprefix }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- if ioc_version %}
+echo "IOC Version: {{ ioc_version }}" >> {{ mount.mountPath }}/{{ iocname }}/start.log
+{%- endif %}
+{%- endif %}
+{%- endfor %}

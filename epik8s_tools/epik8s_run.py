@@ -257,10 +257,20 @@ def generate_readme(values, dir, output_file):
     with open(output_file, 'w') as f:
         f.write(rendered_content)
 
+def run_jnjrender(template_path, config_file, output_dir):
+    """Run the jnjrender command with the specified template and config file."""
+    jnjrender_cmd = f"jnjrender {template_path} {config_file} --output {output_dir}"
+    result = os.system(jnjrender_cmd)
+    if result != 0:
+        print(f"Error: Failed to run jnjrender with template {jnjrender_cmd}")
+        exit(1)
+   
 ## create a configuration in appargs.workdir for each ioc listed, for each ioc you should dump ioc as a yaml file as config/iocname-config.yaml
 ## run jnjrender  /epics/support/ibek-templates/ config/iocname-config.yaml --output iocname-ibek.yaml
 def iocrun(iocs, appargs):
     config_dir = appargs.configdir
+    script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
+
     if os.path.exists(config_dir):
         if appargs.rm:
             for item in os.listdir(config_dir):
@@ -299,15 +309,8 @@ def iocrun(iocs, appargs):
             if template_path:
                 ## this is a ibek template
                 # Call jnjrender with the found template file
-                jnjrender_cmd = f"jnjrender {template_dir} {config_file} --output {config_dir}"
-                print(f"* Running command: {jnjrender_cmd}")
-                result = os.system(jnjrender_cmd)
-                if result != 0:
-                    print(f"Error: Failed to run jnjrender with template for IOC '{ioc_name}'.")
-                    exit(1)
-                else:
-                    print(f"* Successfully generated ibek instance in {output_file} from template {template_path}")
-                    
+                run_jnjrender(template_dir,config_file,config_dir)
+                
                 ibek_count += 1
                 ioc['ibek'] = True
                 continue  # Skip the default jnjrender call below if template was used
@@ -324,19 +327,10 @@ def iocrun(iocs, appargs):
                 if template_path:
                     iocconfig = f"{config_dir}/{ioc_name}"
                     os.makedirs(iocconfig, exist_ok=True)
-
-                    # Call jnjrender with the found template file
-                    jnjrender_cmd = f"jnjrender {template_path} {config_file} --output {iocconfig}"
-                    print(f"* Running command: {jnjrender_cmd}")
-                    result = os.system(jnjrender_cmd)
-                    if result != 0:
-                        print(f"Error: Failed to run jnjrender with template for IOC '{ioc_name}'.")
-                        exit(1)
-                    else:
-                        print(f"* Successfully generated (template): {iocconfig}")
-                        ## copy the content of template_dir to config_dir
-                        if 'host' in ioc:
-                            run_remote(ioc,iocconfig,appargs.workdir)
+                    run_jnjrender(template_path,config_file,iocconfig)
+                    if 'host' in ioc:
+                        run_jnjrender(script_dir+"/nfsmount.sh.j2",config_file,iocconfig)
+                        run_remote(ioc,iocconfig,appargs.workdir)
                     continue
     
     if ibek_count>0:
@@ -409,6 +403,7 @@ def main_run():
         iocs=yamlconf.get('iocs', []) ## provided iocs list
     else:
         iocs=[yamlconf] ## ioc configuration alone
+
         
     ## check if the iocname1,iocname2 passed in arguments are included in the iocs list
     ioc_names_from_args = args.iocnames  # List of IOC names passed as arguments
@@ -427,6 +422,11 @@ def main_run():
                 ioc['config_dir']=args.workdir
                 ioc['data_dir']=args.workdir
                 ioc['autosave_dir']=args.workdir
+                if 'nfsMounts' in yamlconf:
+                    ioc['nfsMounts']=yamlconf['nfsMounts']
+                    for k in ioc['nfsMounts']:
+                        if 'mountPath' in k:
+                            ioc[k['name']+"_dir"]=k['mountPath']
 
                 ## unroll iocparam
                 if 'iocparam' in ioc:
