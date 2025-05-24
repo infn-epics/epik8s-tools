@@ -422,14 +422,14 @@ def main_run():
             if ioc_name == ioc['name']:
                 ## add iocname
                 ioc['iocname']=ioc_name
-                ioc['config_dir']=args.workdir
-                ioc['data_dir']=args.workdir
-                ioc['autosave_dir']=args.workdir
+                ioc['config_dir']=args.workdir+"/"+ioc_name
+                ioc['data_dir']=args.workdir+"/"+ioc_name
+                ioc['autosave_dir']=args.workdir+"/"+ioc_name
                 if 'nfsMounts' in yamlconf:
                     ioc['nfsMounts']=yamlconf['nfsMounts']
                     for k in ioc['nfsMounts']:
                         if 'mountPath' in k:
-                            ioc[k['name']+"_dir"]=k['mountPath']
+                            ioc[k['name']+"_dir"]=k['mountPath']+"/"+ioc_name
 
                 ## unroll iocparam
                 if 'iocparam' in ioc:
