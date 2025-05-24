@@ -196,7 +196,7 @@ fi""")
     else:
         lines.append(f"echo \"* Running Remotely {exec_cmd} workdir {workdir}\"")
         lines.append(f"echo \"* Passing Environment {envstr}\"")
-        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"cd {workdir} && {envstr} && ./{exec_cmd}\"")
+        lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"cd {workdir} {envstr} && ./{exec_cmd}\"")
 
     lines.append("echo \"## Exiting..\"")
     lines.append("exit 1")
