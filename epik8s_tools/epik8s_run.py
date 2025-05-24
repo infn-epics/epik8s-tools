@@ -160,9 +160,9 @@ fi""")
     scpopt = config.get("scpoptions", "")
     lines.append(f"""echo "* scp {options} {scpopt} -r {source_dir}/* {ssh_user}@{ssh_host}:{workdir}"
 if scp {options} {scpopt} -r {source_dir}/* {ssh_user}@{ssh_host}:{workdir}; then
-  echo "* copied {source_dir}"
+  echo "* copied {source_dir} to {workdir}"
 else
-  echo "## error copying {source_dir}"
+  echo "## error copying {source_dir} to {workdir}"
   exit 1
 fi""")
 
@@ -170,7 +170,8 @@ fi""")
         lines.append("echo \"* Performing mounts\"")
         lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"{workdir}/nfsmount.sh\"")
 
-    envstr = f"export __IOC_TOP__=\"{workdir}\" && export __IOC_PREFIX__=\"{config.get('iocprefix', '')}\" && export __IOC_NAME__=\"{config.get('iocname', '')}\""
+    #envstr = f"export __IOC_TOP__=\"{workdir}\" && export __IOC_PREFIX__=\"{config.get('iocprefix', '')}\" && export __IOC_NAME__=\"{config.get('iocname', '')}\""
+    envstr = ""
     for env in config.get("env", []):
         envstr += f" && export {env['name']}=\"{env['value']}\""
         dockerenv += f" -e {env['name']}={env['value']}"
@@ -330,6 +331,8 @@ def iocrun(iocs, appargs):
                     run_jnjrender(template_path,config_file,iocconfig)
                     if 'host' in ioc:
                         run_jnjrender(script_dir+"/nfsmount.sh.j2",config_file,iocconfig)
+                        # copy config_file to iocconfig
+                        shutil.copy(config_file, os.path.join(iocconfig, f"{ioc_name}-config.yaml"))
                         run_remote(ioc,iocconfig,appargs.workdir)
                     continue
     
