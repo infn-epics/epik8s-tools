@@ -267,13 +267,16 @@ def main_compose():
     parser.add_argument('--output', help="Output directory for the generated files.")
     parser.add_argument('--services', nargs='+', help="List of services to include in the output (default ALL).")
     parser.add_argument('--exclude', nargs='+', help="List of services to exclude in the output")
+    parser.add_argument("--version", action="store_true", help="Show the version and exit")  # Add this option
 
     parser.add_argument('--caport', default=caport, help="Start CA access port to map on host")
     parser.add_argument('--pvaport', default=pvaport, help="Start PVA port to map on host")
     parser.add_argument('--htmlport', default=ingressport, help="Start ingress (http) port on host")
 
     args = parser.parse_args()
-
+    if args.version:
+        print(f"epik8s-compose version {__version__}")
+        exit(0)
     caport = args.caport
     pvaport = args.pvaport
     ingressport = args.htmlport

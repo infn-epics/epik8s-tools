@@ -186,7 +186,7 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        print(f"epik8s-tools version {__version__}")
+        print(f"epik8s-gen version {__version__}")
         return
 
     if not args.beamlinerepogit:

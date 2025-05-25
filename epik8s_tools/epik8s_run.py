@@ -377,7 +377,7 @@ def main_run():
 
     # Handle --version flag early
     if args.version:
-        print(f"epik8s-tools version {__version__}")
+        print(f"epik8s-run version {__version__}")
         exit(0)
 
     # Validate positional arguments
@@ -425,6 +425,7 @@ def main_run():
                 ioc['config_dir']=args.workdir+"/"+ioc_name
                 ioc['data_dir']=args.workdir+"/"+ioc_name
                 ioc['autosave_dir']=args.workdir+"/"+ioc_name
+                ioc['epik8s-tools-version']=__version__
                 if 'nfsMounts' in yamlconf:
                     ioc['nfsMounts']=yamlconf['nfsMounts']
                     for k in ioc['nfsMounts']:
