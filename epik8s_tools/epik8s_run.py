@@ -332,6 +332,8 @@ def iocrun(iocs, appargs):
                     if 'host' in ioc:
                         run_jnjrender(script_dir+"/nfsmount.sh.j2",config_file,iocconfig)
                         # copy config_file to iocconfig
+                        if os.path.exists("/BUILD_INFO.txt"):
+                            shutil.copy("/BUILD_INFO.txt", os.path.join(iocconfig, "BUILD_INFO.txt"))
                         shutil.copy(config_file, os.path.join(iocconfig, f"{ioc_name}-config.yaml"))
                         run_remote(ioc,iocconfig,appargs.workdir)
                     continue
