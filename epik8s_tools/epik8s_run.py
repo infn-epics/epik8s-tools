@@ -10,6 +10,34 @@ from datetime import datetime
 from epik8s_tools import __version__
 import subprocess  # For running Docker commands
 
+
+IOC_EXEC = """
+#!/bin/sh
+{% if serial and serial.ip and serial.port %}
+echo "opening {{ serial.ptty }},raw,echo=0,b{{ serial.baud }} tcp:{{ serial.ip }}:{{ serial.port }}"
+socat pty,link={{ serial.ptty }},raw,echo=0,b{{ serial.baud }} tcp:{{ serial.ip }}:{{ serial.port }} &
+sleep 1
+if [ -e {{ serial.ptty }} ]; then
+echo "tty {{ serial.ptty }}"
+else
+echo "## failed tty {{ serial.ptty }} "
+exit 1
+fi
+{% endif %}
+{% for mount in nfsMounts %}
+mkdir -p {{ mount.mountPath }}/{{ iocname }}
+{% if mount.name == "config" %}
+cp -r /epics/ioc/config/* {{ mount.mountPath }}/{{ iocname }}/
+{% endif %}
+{% endfor %}
+{% if start %}
+export PATH="$PATH:$PWD"
+chmod +x {{ start }}
+{{ start }}
+{% else %}
+/epics/ioc/start.sh
+{% endif %}
+"""
 def copytree(template_dir, config_dir):
     for item in os.listdir(template_dir):
         s = os.path.join(template_dir, item)
