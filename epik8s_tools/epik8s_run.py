@@ -368,15 +368,17 @@ def iocrun(iocs, appargs):
     
     if ibek_count>0:
         start_command = ["/epics/ioc/start.sh"]
-        print(f"* Running command: {start_command} with DIR={config_dir}")
-        result = subprocess.run(start_command)
-
+        # Execute the command in IOC_EXEC
+        ioc_exec_script = os.path.join(config_dir, "ioc_exec.sh")
+        with open(ioc_exec_script, "w") as f:
+            f.write(IOC_EXEC)
+        os.chmod(ioc_exec_script, 0o755)  # Make the script executable
+        result = subprocess.run([ioc_exec_script], shell=True)
         if result.returncode != 0:
-            print(f"Error: Failed to start IBEK IOC.")
+            print(f"Error: Failed to execute IOC_EXEC script.")
             exit(1)
         else:
-            print(f"* Successfully started IOC.")
-    
+            print(f"* Successfully executed IOC_EXEC script.")
         
     
 
