@@ -13,7 +13,7 @@ import subprocess  # For running Docker commands
 
 IOC_EXEC = """
 #!/bin/sh
-{% if serial and serial.ip and serial.port %}
+{%- if serial and serial.ip and serial.port %}
 echo "opening {{ serial.ptty }},raw,echo=0,b{{ serial.baud }} tcp:{{ serial.ip }}:{{ serial.port }}"
 socat pty,link={{ serial.ptty }},raw,echo=0,b{{ serial.baud }} tcp:{{ serial.ip }}:{{ serial.port }} &
 sleep 1
@@ -23,20 +23,20 @@ else
 echo "## failed tty {{ serial.ptty }} "
 exit 1
 fi
-{% endif %}
-{% for mount in nfsMounts %}
+{%- endif %}
+{%- for mount in nfsMounts %}
 mkdir -p {{ mount.mountPath }}/{{ iocname }}
-{% if mount.name == "config" %}
+{%- if mount.name == "config" %}
 cp -r /epics/ioc/config/* {{ mount.mountPath }}/{{ iocname }}/
-{% endif %}
-{% endfor %}
-{% if start %}
+{%- endif %}
+{%- endfor %}
+{%- if start %}
 export PATH="$PATH:$PWD"
 chmod +x {{ start }}
 {{ start }}
-{% else %}
+{%- else %}
 /epics/ioc/start.sh
-{% endif %}
+{%- endif %}
 """
 def copytree(template_dir, config_dir):
     for item in os.listdir(template_dir):
@@ -286,6 +286,12 @@ def generate_readme(values, dir, output_file):
     with open(output_file, 'w') as f:
         f.write(rendered_content)
 
+def dump_exec(indir):
+    ioc_exec_script = os.path.join(indir, "ioc_exec.sh.j2")
+    with open(ioc_exec_script, "w") as f:
+        f.write(IOC_EXEC)
+    os.chmod(ioc_exec_script, 0o755)  # Make the script executable
+
 def run_jnjrender(template_path, config_file, output_dir):
     """Run the jnjrender command with the specified template and config file."""
     jnjrender_cmd = f"jnjrender {template_path} {config_file} --output {output_dir}"
@@ -338,6 +344,7 @@ def iocrun(iocs, appargs):
             if template_path:
                 ## this is a ibek template
                 # Call jnjrender with the found template file
+                dump_exec(config_dir)
                 run_jnjrender(template_dir,config_file,config_dir)
                 
                 ibek_count += 1
@@ -367,18 +374,15 @@ def iocrun(iocs, appargs):
                     continue
     
     if ibek_count>0:
-        start_command = ["/epics/ioc/start.sh"]
+        start_command = f"{config_dir}/ioc_exec.sh"
         # Execute the command in IOC_EXEC
-        ioc_exec_script = os.path.join(config_dir, "ioc_exec.sh")
-        with open(ioc_exec_script, "w") as f:
-            f.write(IOC_EXEC)
-        os.chmod(ioc_exec_script, 0o755)  # Make the script executable
-        result = subprocess.run([ioc_exec_script], shell=True)
+     
+        result = subprocess.run(start_command, shell=True)
         if result.returncode != 0:
-            print(f"Error: Failed to execute IOC_EXEC script.")
+            print(f"Error: Failed to execute {start_command} script.")
             exit(1)
         else:
-            print(f"* Successfully executed IOC_EXEC script.")
+            print(f"* Successfully executed {start_command} script.")
         
     
 

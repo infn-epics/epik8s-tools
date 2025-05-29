@@ -2,7 +2,8 @@
 {
     "name": "python container",
     
-    "image": "ghcr.io/infn-epics/infn-epics-ioc-runtime:latest",
+    //"image": "ghcr.io/infn-epics/infn-epics-ioc-runtime:latest",
+    "image": "docker.io/library/ec_test",
     "remoteEnv": {
         // allows X11 apps to run inside the container
         "DISPLAY": "${localEnv:DISPLAY}",

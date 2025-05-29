@@ -27,6 +27,26 @@
             }
         },
         {
+            "name": "Python: RUN IOC on SPARC IBEK pfeiffer",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "console": "integratedTerminal",
+            "args":[
+                    "tests/sparc_values.yaml",
+                    "vga-gun01",
+                    "--native",
+                    "--rm",
+                    "--workdir", "/tmp"
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: RUN IOC",
             "type": "python",
             "request": "launch",
