@@ -1,0 +1,6 @@
+[submodule "tests/templates_dir/ibek-templates"]
+	path = tests/templates_dir/ibek-templates
+	url = https://github.com/infn-epics/ibek-templates.git
+[submodule "tests/templates_dir/epics-support-template-infn"]
+	path = tests/templates_dir/epics-support-template-infn
+	url = https://github.com/infn-epics/epics-support-template-infn.git

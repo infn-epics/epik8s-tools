@@ -426,7 +426,7 @@ def main_run():
         exit(1)
 
     if not os.path.isfile(args.yaml_file):
-        print(f"# yaml configuration {args.yaml_file} does not exists")
+        print(f"# yaml configuration '{args.yaml_file}' does not exists")
         exit(1)
         
     yamlconf=None
@@ -449,7 +449,11 @@ def main_run():
         
         
     print(f"* found '{len(iocs)}' IOCs  in configuration")
-    
+    ## list the iocs
+    for ioc in iocs:
+        if 'name' in ioc:
+            print(f"* IOC '{ioc['name']}'")
+        
     iocrunlist=[]
     # Validate the IOC names
     for ioc_name in ioc_names_from_args:
@@ -462,7 +466,7 @@ def main_run():
                 ioc['data_dir']=args.workdir+"/"+ioc_name
                 ioc['autosave_dir']=args.workdir+"/"+ioc_name
                 ioc['epik8s-tools-version']=__version__
-                if 'nfsMounts' in yamlconf:
+                if 'nfsMounts' in yamlconf and yamlconf['nfsMounts']:
                     ioc['nfsMounts']=yamlconf['nfsMounts']
                     for k in ioc['nfsMounts']:
                         if 'mountPath' in k:
