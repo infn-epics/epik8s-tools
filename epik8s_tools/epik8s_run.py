@@ -164,9 +164,10 @@ def run_remote(config: dict,source_dir,tmpwork) -> str:
 
     lines.append(f"echo \"* path {get(config, 'gitRepoConfig.path', '')}\"")
 
-    for mount in get(config, "nfsMounts", []):
-        mount_path = mount["mountPath"]
-        dockermount = f"-v \"{mount_path}\":\"{mount_path}\" {dockermount}"
+    if 'nfsMounts' in config and config['nfsMounts']:
+        for mount in get(config, "nfsMounts", []):
+            mount_path = mount["mountPath"]
+            dockermount = f"-v \"{mount_path}\":\"{mount_path}\" {dockermount}"
 
 
 
