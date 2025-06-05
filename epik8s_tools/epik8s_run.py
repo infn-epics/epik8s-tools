@@ -406,7 +406,7 @@ def main_run():
     parser.add_argument("--templatedir", default="/epics/support/templates", help="Templates directory")
     parser.add_argument("--configdir", default="/epics/ioc/config", help="Configuration output directory")
     parser.add_argument("--rm", action="store_true", help="Remove configuration directory content")
-
+    parser.add_argument("--dockerargs", default="", help="Additional Docker arguments")
     parser.add_argument("--caport", default="5064", help="Base port to use for CA")
     parser.add_argument("--pvaport", default="5075", help="Base port to use for PVA")
 
@@ -538,7 +538,8 @@ def main_run():
             "--workdir", "/workdir",
             "--native"
         ])
-
+        if args.dockerargs:
+            docker_args.extend(args.dockerargs.split())
         # Print and execute the Docker command
         print(f"* Running Docker command: {' '.join(docker_args)}")
         result = subprocess.run(docker_args)
