@@ -97,7 +97,7 @@ def run_remote(config: dict,source_dir,tmpwork) -> str:
             else:
                 return default
         return d
-          
+    mountenable= 'nfsMounts' in config and config['nfsMounts']     
     ca_server_port = str(get(config, "ca_server_port", 5064))
     pva_server_port = str(get(config, "pva_server_port", 5075))
     sshforward = ""
@@ -164,7 +164,7 @@ def run_remote(config: dict,source_dir,tmpwork) -> str:
 
     lines.append(f"echo \"* path {get(config, 'gitRepoConfig.path', '')}\"")
 
-    if 'nfsMounts' in config and config['nfsMounts']:
+    if mountenable:
         for mount in get(config, "nfsMounts", []):
             mount_path = mount["mountPath"]
             dockermount = f"-v \"{mount_path}\":\"{mount_path}\" {dockermount}"
@@ -195,7 +195,7 @@ else
   exit 1
 fi""")
 
-    if get(config, "nfsMounts"):
+    if mountenable:
         lines.append("echo \"* Performing mounts\"")
         lines.append(f"ssh {options} {ssh_user}@{ssh_host} \"{workdir}/nfsmount.sh\"")
 
