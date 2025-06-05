@@ -1,5 +1,5 @@
 #!/bin/sh
-{% if nfsMounts | length > 0 %}
+{% if nfsMounts is defined and nfsMounts is not none %}
 {%- for mount in nfsMounts %}
 moptions=""
 {%- if mount.opt %}

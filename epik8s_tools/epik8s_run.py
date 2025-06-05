@@ -449,10 +449,7 @@ def main_run():
         
         
     print(f"* found '{len(iocs)}' IOCs  in configuration")
-    ## list the iocs
-    for ioc in iocs:
-        if 'name' in ioc:
-            print(f"* IOC '{ioc['name']}'")
+    
         
     iocrunlist=[]
     # Validate the IOC names
