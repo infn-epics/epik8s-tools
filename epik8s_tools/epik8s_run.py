@@ -292,6 +292,7 @@ def dump_exec(indir):
     with open(ioc_exec_script, "w") as f:
         f.write(IOC_EXEC)
     os.chmod(ioc_exec_script, 0o755)  # Make the script executable
+    print(f"* Created ioc_exec script: {ioc_exec_script}")
 
 def run_jnjrender(template_path, config_file, output_dir):
     """Run the jnjrender command with the specified template and config file."""
@@ -335,7 +336,7 @@ def iocrun(iocs, appargs):
             template_name = ioc['template']+".yaml.j2"
             template_path = None
             template_dir = None
-            print(f"Searching '{template_name}' in {appargs.templatedir}")
+            print(f"* IBEK Search '{template_name}' in {appargs.templatedir}")
 
             for root, dirs, files in os.walk(appargs.templatedir):
                 if template_name in files:
@@ -352,7 +353,7 @@ def iocrun(iocs, appargs):
                 ioc['ibek'] = True
                 continue  # Skip the default jnjrender call below if template was used
             else:
-                print(f"Searching '{ioc['template']}' in {appargs.templatedir}")
+                print(f"* Searching '{ioc['template']}' in {appargs.templatedir}")
                 ## search directory ioc['template'] in /epics/support/support-templates
                 template_path = None
 

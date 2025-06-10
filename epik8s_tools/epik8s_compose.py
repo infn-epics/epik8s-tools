@@ -4,7 +4,7 @@ import argparse
 import shutil
 from jinja2 import Template
 from epik8s_tools import __version__
-
+import yaml
 
 
 # Templates for config and execution

@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: RUN IOC on TPG300",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "tests/sparc_values.yaml",
+                    "vga-gun01",
+                    "--rm",
+                    "--image","ec_test",
+                    "--templatedir","tests/templates_dir",
+                    "--workdir", "/tmp"
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: RUN IOC on ELI TEST MRF",
             "type": "python",
             "request": "launch",
@@ -14,7 +36,7 @@
             //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
             "args":[
                     "tests/rke2_test.yaml",
-                    "mrf-evg-test",
+                    "key-test",
                     "--native",
                     "--rm",
                     "--templatedir","tests/templates_dir",

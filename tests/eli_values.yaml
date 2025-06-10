@@ -12,6 +12,7 @@ gitrev: devel
 baseIp: "10.96.0.0/13" ## valid IPs is 10.96.0.0/12
 startIp: 1
 openshift: false
+epik8s_secrets: epik8s-secret
 epicsConfiguration:
   name: "epics-configuration" # name of existing configMap that set CA parameters
   address_list: ""
@@ -351,7 +352,6 @@ epicsConfiguration:
       image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camerasim
       devgroup: diag
-      gitinit: true
       template: "adcamera"
       targetRevision: 'templates'
       enable_ingress: true

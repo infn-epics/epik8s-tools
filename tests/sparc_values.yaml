@@ -1441,7 +1441,7 @@ epicsConfiguration:
     - name: "vga-gun01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129491"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocprefix: "SPARC:GUN:GUNVGA01"
+      iocprefix: "SPARC:GUN:VGA01"
       template: "pfeiffer-tpg"
       targetRevision: 'templates'
       devtype: tpg300
@@ -1461,7 +1461,6 @@ epicsConfiguration:
             channel: B1
           - name: "IP2"
             channel: B2
-
 
     - name: "vacsip-rfd-ptl"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129491"
