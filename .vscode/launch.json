@@ -154,6 +154,26 @@
             }
         },
         {
+            "name": "Python: COMPOSE ELI template",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--config", "./tests/eli_values.yaml",
+                    "--pvaport","5175",
+                    "--services","cam01"
+                    //"vgcon01","vgcon02","vpcon17","vpcon19",
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: OPIGEN ELI",
             "type": "python",
             "request": "launch",
@@ -287,7 +307,7 @@
             }
         },
         {
-            "name": "Python: OPIGEN ELI",
+            "name": "Python: OPIGEN MD ELI",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",

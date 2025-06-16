@@ -17,17 +17,10 @@ epicsConfiguration:
   name: "epics-configuration" # name of existing configMap that set CA parameters
   address_list: ""
 
-# 10.16.4.26 gen-cs-gp09-ioc01.lnf.infn.it
-## modulator
-# plelillrf001.lnf.infn.it
-# plelillrfs001.lnf.infn.it
-# plelillrfs002.lnf.infn.it
-# plelillrfc001.lnf.infn.it
-# mikelinux.lnf.infn.it 
+
   max_array_bytes: "10000000"
   # conn_tmo: 120
   services:
-    
     gateway:
       charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
       ingress:
@@ -36,9 +29,12 @@ epicsConfiguration:
       replicaCount: 1
       exec: start.sh
       auto_security: true
-      gitinit: true
+      template: "gateway"
       autosync: true ## restart automatically on changes
       staticIp: true
+      svcparams:
+        - name: "disconnect_timeout"
+          value: 60
       resources:
             limits:
               cpu: 999m
@@ -48,16 +44,13 @@ epicsConfiguration:
               memory: 1Gi
     pvagateway:
       charturl: 'https://baltig.infn.it/epics-containers/ca-gateway-chart.git'
-      image:
-        repository: baltig.infn.it:4567/epics-containers/docker-pva-gateway
-        tag: "latest"
       ingress:
         enabled: false
       loadbalancer: 10.16.4.203
+      template: "pvagateway"
       replicaCount: 1
-      exec: start.sh
       auto_security: true
-      gitinit: true
+      
       autosync: true ## restart automatically on changes
       staticIp: true
       resources:
@@ -152,7 +145,7 @@ epicsConfiguration:
           accessMode: ReadWriteOnce
       enable_ingress: true
       usegateway: true
-      autosync: true ## restart automatically on changes
+      autosync: false ## restart automatically on changes
       pip:
         - bluesky
         - infn-ophyd-hal
@@ -292,8 +285,8 @@ epicsConfiguration:
   iocs:
     - name: "llrf01"
       asset: "https://confluence.infn.it/x/doKBBg"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
-      iocdir: "libera-llrf"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      template:  "libera-llrf"
       devtype: llrf
       devgroup: rf
       iocprefix: "LEL-RF-LLRF03"
@@ -303,6 +296,55 @@ epicsConfiguration:
       workdir: "/opt/epik8s-eli"
       exec: "start.sh"
       #autosync: true ## restart automatically on changes
+
+    - name: "bdelilibera01"
+      asset: "https://confluence.infn.it/x/doKBBg"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git' 
+      template: "libera-spe"
+      devtype: bpm
+      devgroup: diag
+      iocprefix: "LEL:DIA:BPM01"
+      pva: false
+      iocbin: "/opt/libera-ioc/bin/liberaIOC"
+      devices:
+        - name: "BPM01"
+          channel: 3
+        - name: "BPM02"
+          channel: 4
+        - name: "BPM03"
+          channel: 5
+        - name: "BPM04"
+          channel: 6  
+      host: "bdelilibera01.int.eli-np.ro"
+      ssh_options: "-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+      workdir: "/opt/sparc-template-sppp"
+      scpoptions: "-O"
+      exec: "start.sh"
+      autosync: false ## restart automatically on changes
+
+    - name: "bdelilibera02"
+      asset: "https://confluence.infn.it/x/doKBBg"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git' 
+      template: "libera-spe"
+      devtype: bpm
+      devgroup: diag
+      iocprefix: "LEL:DIA:BPM02"
+      pva: false
+      devices:
+        - name: "BPM01"
+          channel: 3
+        - name: "BPM02"
+          channel: 4
+        - name: "BPM03"
+          channel: 5
+        - name: "BPM04"
+          channel: 6  
+      host: "bdelilibera02.int.eli-np.ro"
+      ssh_options: "-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+      workdir: "/opt/sparc-template-sppp"
+      scpoptions: "-O"
+      exec: "start.sh"
+      autosync: false ## restart automatically on changes
 
     - name: "orbit"
       asset: "https://confluence.infn.it/x/nYD8DQ"
@@ -315,37 +357,7 @@ epicsConfiguration:
       gitinit: true
       autosync: false ## restart automatically on changes
       usegateway: false
-    
-    
-    
-    - name: "biltitest-cpsu03"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111616"
-      devtype: bilt-itest
-      iocdir: "ibilt-test"
-      devgroup: mag
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      gitinit: true
-      autosync: false ## restart automatically on changes
-      # carepeater: true ## launch ca repeater, this ioc needs it
-      iocprefix: "LEL:MAG:CPSU03"
-      iocparam:
-        - name: "server"
-          value: 10.16.4.49
-      opi: "biltitest"
-      devices:
-          - name: "HCOR06"
-            id: 1
-            max: 10
-          - name: "VCOR06"
-            id: 2
-            max: 10
-          - name: "HCOR07"
-            id: 3
-            max: 10
-          - name: "VCOR07"
-            id: 4
-            max: 10
-          
+         
     - name: "camerasim"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
@@ -353,7 +365,6 @@ epicsConfiguration:
       devtype: camerasim
       devgroup: diag
       template: "adcamera"
-      targetRevision: 'templates'
       enable_ingress: true
       service:   
         http:
@@ -414,26 +425,15 @@ epicsConfiguration:
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
-      devgroup: diag
-      gitinit: true
-      iocdir: "camera"
+      devgroup: screen 1
+      template:  "adcamera"
       pva: true
       networks:
         - name: "gigevision-client"
-          annotation: "gigevision-network"
-      # hostNetwork: true
-      useAffinity: true
-      affinityKey: "gige"
-      affinityValue: "enabled"
+          annotation: "multus-secondary-net"
       iocprefix: "LEL:SCN01"
       autosync: false ## restart automatically on changes
-      iocinit:
-        - name: "AcquirePeriod"
-          value: "1"
-        - name: "FrameRate"
-          value: "1"
-        - name: "FrameRateEnable"
-          value: "Yes"
+      
       iocparam:
         - name: "overlay_enable"
           value: false
@@ -445,36 +445,33 @@ epicsConfiguration:
           value: true
         - name: "roi_enable"
           value: false
-      cameras:
+      devices:
         - name: "CAM01"
-          CAMERA_ID: Basler-a2A1920-51gmBAS-40458493
+          CAMERA_ID: "10.16.4.21" # Basler-a2A1920-51gmBAS-40458493
           CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
         
     - name: "cam02"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&mode=object&objectId=126656"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
-      devgroup: diag
-      gitinit: true
-      iocdir: "camera"
+      devgroup: screen 2
+      template:  "adcamera"
       pva: true
       networks:
         - name: "gigevision-client"
-          annotation: "gigevision-network"
-      # hostNetwork: true
-      useAffinity: true
-      affinityKey: "gige"
-      affinityValue: "enabled"
+          annotation: "multus-secondary-net"
+      
       iocprefix: "LEL:SCN02"
       autosync: false ## restart automatically on changes
-      iocinit:
-        - name: "AcquirePeriod"
-          value: "1"
-        - name: "FrameRate"
-          value: "1"
-        - name: "FrameRateEnable"
-          value: "Yes"
+      
       iocparam:
         - name: "overlay_enable"
           value: false
@@ -486,37 +483,35 @@ epicsConfiguration:
           value: true
         - name: "roi_enable"
           value: false
-      cameras:
+      devices:
         - name: "CAM01"
-          CAMERA_ID: Basler-a2A1920-51gmBAS-40458497
+          CAMERA_ID: "10.16.4.22" ## Basler-a2A1920-51gmBAS-40458497
           CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
 
     
     - name: "cam03"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&objectId=126655"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&mode=object&objectId=128741"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       image: ghcr.io/infn-epics/infn-epics-ioc-runtime
       devtype: camera
-      devgroup: diag
-      gitinit: true
-      iocdir: "camera"
+      devgroup: screen 3
+      
+      template:  "adcamera"
       pva: true
       networks:
         - name: "gigevision-client"
-          annotation: "gigevision-network"
-      # hostNetwork: true
-      useAffinity: true
-      affinityKey: "gige"
-      affinityValue: "enabled"
+          annotation: "multus-secondary-net"
+      
       iocprefix: "LEL:SCN03"
       autosync: false ## restart automatically on changes
-      iocinit:
-        - name: "AcquirePeriod"
-          value: "1"
-        - name: "FrameRate"
-          value: "1"
-        - name: "FrameRateEnable"
-          value: "Yes"
+      
       iocparam:
         - name: "overlay_enable"
           value: false
@@ -528,21 +523,142 @@ epicsConfiguration:
           value: true
         - name: "roi_enable"
           value: false
-      cameras:
+      devices:
         - name: "CAM01"
-          CAMERA_ID: Basler-a2A1920-51gmBAS-40458491
+          CAMERA_ID: "10.16.4.36" ## Basler-a2A1920-51gmBAS-40458491
           CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
 
+
+    - name: "cam04"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&mode=object&objectId=128742"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
+      devtype: camera
+      devgroup: screen 4
+      
+      template:  "adcamera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "multus-secondary-net"
+      
+      iocprefix: "LEL:SCN04"
+      autosync: false ## restart automatically on changes
+      
+      iocparam:
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      devices:
+        - name: "CAM01"
+          CAMERA_ID: "10.16.4.37"  # Basler-a2A1920-51gmBAS-40458491
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
+
+    - name: "cam05"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&mode=object&objectId=128743"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
+      devtype: camera
+      devgroup: screen 5
+      
+      template:  "adcamera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "multus-secondary-net"
+      
+      iocprefix: "LEL:SCN05"
+      autosync: false ## restart automatically on changes
+      
+      iocparam:
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      devices:
+        - name: "CAM01"
+          CAMERA_ID: "10.16.4.38" ## Basler-a2A1920-51gmBAS-40458491
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
     
-
+    - name: "cam06"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2748&mode=object&objectId=128744"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      image: ghcr.io/infn-epics/infn-epics-ioc-runtime
+      devtype: camera
+      devgroup: screen 6
+      
+      template:  "adcamera"
+      pva: true
+      networks:
+        - name: "gigevision-client"
+          annotation: "multus-secondary-net"
+      
+      iocprefix: "LEL:SCN06"
+      autosync: false ## restart automatically on changes
+      
+      iocparam:
+        - name: "overlay_enable"
+          value: false
+        - name: "stats_enable"
+          value: true
+        - name: "proc_enable"
+          value: false
+        - name: "tiff_enable"
+          value: true
+        - name: "roi_enable"
+          value: false
+      devices:
+        - name: "CAM01"
+          CAMERA_ID: "10.16.4.41" ## Basler-a2A1920-51gmBAS-40458491
+          CAMERA_CLASS: Basler-a2A2600-20gmBAS
+          iocinit:
+            - name: "AcquirePeriod"
+              value: "1"
+            - name: "FrameRate"
+              value: "1"
+            - name: "FrameRateEnable"
+              value: "Yes"
     
-
     - name: "plelievr001-laser-delay"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=113215"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:TIM"
       devtype: evr230
-      iocdir: "cosylabioc"
+      template: "mrf-pci-230"
       devgroup: timing
       host: "10.16.4.24" ## plelievr001
       workdir: "/opt/codac-4.1/apps/elinp-gp06-ioc01/epik8s-laser-delay"
@@ -552,20 +668,20 @@ epicsConfiguration:
       autosync: false
       nfsMounts:
       - name: data
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/data
+        server: "10.16.4.100"
+        path: /epik8s_data/data
         mountPath: /nfs/data
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: autosave
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/autosave
+        server: "10.16.4.100"
+        path: /epik8s_data/autosave
         mountPath: /nfs/autosave
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: config
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/config
+        server: "10.16.4.100"
+        path: /epik8s_data/config
         mountPath: /nfs/config
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
@@ -634,10 +750,10 @@ epicsConfiguration:
     
     - name: "plelievr002-rf-delay"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=133675"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:TIM"
       devtype: evr230
-      iocdir: "cosylabioc"
+      template: "mrf-pci-230"
       devgroup: timing
       host: "10.16.4.62" ## plelievr002
       workdir: "/opt/codac-4.1/apps/elinp-gp04-ioc17/epik8s-rf-delay"
@@ -647,20 +763,20 @@ epicsConfiguration:
       autosync: false
       nfsMounts:
       - name: data
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/data
+        server: "10.16.4.100"
+        path: /epik8s_data/data
         mountPath: /nfs/data
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: autosave
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/autosave
+        server: "10.16.4.100"
+        path: /epik8s_data/autosave
         mountPath: /nfs/autosave
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: config
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/config
+        server: "10.16.4.100"
+        path: /epik8s_data/config
         mountPath: /nfs/config
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
@@ -842,14 +958,15 @@ epicsConfiguration:
 
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
+
     - name: "plelievrkey001"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&objectId=119372"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL"
       devtype: evr230
-      iocdir: "cosylabioc"
+      template: "mrf-pci-230"
       devgroup: timing
-      host: "10.16.4.25" 
+      host: "10.16.4.25" # "plelievr002.int.eli-np.ro" # "10.16.4.25" 
       workdir: "/opt/codac-4.1/apps/elinp-gp08-ioc06/epik8s-delay"
       exec: "start.sh"
       iocbin: "../bin/linux-x86_64/elinp-gp08-ioc06"
@@ -857,20 +974,20 @@ epicsConfiguration:
       autosync: false
       nfsMounts:
       - name: data
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/data
+        server: "10.16.4.100"
+        path: /epik8s_data/data
         mountPath: /nfs/data
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: autosave
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/autosave
+        server: "10.16.4.100"
+        path: /epik8s_data/autosave
         mountPath: /nfs/autosave
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: config
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/config
+        server: "10.16.4.100"
+        path: /epik8s_data/config
         mountPath: /nfs/config
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
@@ -1066,14 +1183,14 @@ epicsConfiguration:
       ssh_options: "-o HostKeyAlgorithms=ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
       scpoptions: "-O"
     
-    - name: "plelievg001-evg"
+    - name: "plelievg001"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2441&mode=object&objectId=113217"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:TIM"
       devtype: evg230
-      iocdir: "cosylabioc"
+      template: "mrf-pci-230"
       devgroup: timing
-      host: "10.16.4.23" ## plelievg001
+      host: "plelievg001.int.eli-np.ro" # "10.16.4.23" ## plelievg001
       workdir: "/opt/codac-4.1/apps/elinp-gp09-ioc01/iocBoot/epik8s-evg"
       exec: "start.sh"
       iocbin: "../../bin/linux-x86_64/elinp-gp09-ioc01"
@@ -1081,20 +1198,20 @@ epicsConfiguration:
       autosync: false
       nfsMounts:
       - name: data
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/data
+        server: "10.16.4.100"
+        path: /epik8s_data/data
         mountPath: /nfs/data
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: autosave
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/autosave
+        server: "10.16.4.100"
+        path: /epik8s_data/autosave
         mountPath: /nfs/autosave
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
       - name: config
-        server: "192.168.197.157"
-        path: /data_epik8s/eli/config
+        server: "10.16.4.100"
+        path: /epik8s_data/config
         mountPath: /nfs/config
         opt: "-o credentials=/etc/smbcredentials"
         type: "cifs"
@@ -1127,7 +1244,7 @@ epicsConfiguration:
 
     # - name: "plelievrkey001-adc"
     #   asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2446&mode=object&objectId=119372"
-    #   charturl: 'https://baltig.infn.it/epics-containers/ioc-launcher-chart.git'
+    #   charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
     #   devtype: m9210
     #   devgroup: adc
     #   host: "10.16.4.25"
@@ -1135,24 +1252,24 @@ epicsConfiguration:
     #   iocbin: "../bin/linux-x86_64/elinp-gp08-ioc06"
     #   iocfunc: "elinp_gp08_ioc06"
     #   exec: "start.sh"
-    #   iocdir: "cosylabioc"
+    #   template: "mrf-pci-230"
     #   autosync: false
     #   nfsMounts:
     #   - name: data
-    #     server: "192.168.197.157"
-    #     path: /data_epik8s/eli/data
+    #     server: "10.16.4.100"
+    #     path: /epik8s_data/data
     #     mountPath: /nfs/data
     #     opt: "-o credentials=/etc/smbcredentials"
     #     type: "cifs"
     #   - name: autosave
-    #     server: "192.168.197.157"
-    #     path: /data_epik8s/eli/autosave
+    #     server: "10.16.4.100"
+    #     path: /epik8s_data/autosave
     #     mountPath: /nfs/autosave
     #     opt: "-o credentials=/etc/smbcredentials"
     #     type: "cifs"
     #   - name: config
-    #     server: "192.168.197.157"
-    #     path: /data_epik8s/eli/config
+    #     server: "10.16.4.100"
+    #     path: /epik8s_data/config
     #     mountPath: /nfs/config
     #     opt: "-o credentials=/etc/smbcredentials"
     #     type: "cifs"
@@ -1174,44 +1291,56 @@ epicsConfiguration:
     #   scpoptions: "-O"
 
     - name: "polrev-icpdas01"
-      asset: "https://confluence.infn.it/x/nYD8DQ"
+      asset: "https://servicedesk.infn.it/secure/insight/assets/LNFELINP-134115"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:POLREV"
       iocroot: "ICPDAS01"
-      iocdir: "icpdas"
+      template: "icpdas"
       devtype: icp7060
       devgroup: polarity_reversal
-      autosync: false
       opi: "icpdas"
-      gitinit: true
+      autosync: true
+
       iocparam:
         - name: "server"
           value: 10.16.4.32 # ddeliicp6r6i001.lnf.infn.it #10.16.4.32
 
     - name: "polrev-icpdas02"
-      asset: "https://confluence.infn.it/x/nYD8DQ"
+      asset: "https://servicedesk.infn.it/secure/insight/assets/LNFELINP-134116"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:POLREV"
       iocroot: "ICPDAS02"
-      iocdir: "icpdas"
+      template: "icpdas"
       devtype: icp7060
       devgroup: polarity_reversal
       opi: "icpdas"
-      autosync: false
-      gitinit: true
+      autosync: true
       iocparam:
         - name: "server"
           value: 10.16.4.33 # ddeliicp6r6i002.lnf.infn.it # 10.16.4.33
 
+    - name: "illuminatore"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2453&objectId=126786"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:ILLUM"
+      iocroot: "ICPDAS"
+      template: "icpdas"
+      devtype: icp7060
+      devgroup: screen 123456
+      opi: "icpdas"
+      autosync: true
+      iocparam:
+        - name: "server"
+          value: 10.16.4.66 # ddeliicp6r6i002.lnf.infn.it # 10.16.4.33
     - name: "vgcon01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111736"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:VAC:VGCON01"
-      iocdir: "agilent-vac"
+      template: "agilent-vac"
       devtype: xgs600
       devgroup: vgc
-      autosync: false
-      gitinit: true
+      autosync: true
+      
       iocparam:
         - name: "server"
           value: 10.16.4.57 # scelimxa16001
@@ -1219,46 +1348,56 @@ epicsConfiguration:
           value: 4001
       opi: "agilentXGS"
       devices:
-        img:
-          opi: "xgs600img"
-          channels:
           - name: "GAUG01:CC"
             sensor: "I1"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG02:CC"
             sensor: "I2"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG03:CC"
             sensor: "I3"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG04:CC"
             sensor: "I4"
             tcauto: "T3"
-        setpoint:
-          opi: "xgs600setpoint"
-          channels:
+            devtype: "img"
+            opi: "xgs600img"          
           - name: "GAUG01:CC:SP1"
             sensor: "I1"
             number: "1"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG01:CC:SP2"
             sensor: "I2"
             number: "2"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG02:CC:SP1"
             sensor: "I3"
             number: "1"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG02:CC:SP2"
             sensor: "I4"
             number: "2"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           
     - name: "vgcon02"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111737"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:VAC:VGCON02"
-      iocdir: "agilent-vac"
+      template: "agilent-vac"
       devtype: xgs600
       devgroup: vgc
-      autosync: false
-      gitinit: true
+      autosync: true
+      
       iocparam:
         - name: "server"
           value: 10.16.4.57 # scelimxa16001
@@ -1266,46 +1405,56 @@ epicsConfiguration:
           value: 4003
       opi: "agilentXGS"
       devices:
-        img:
-          opi: "xgs600img"
-          channels:
           - name: "GAUG05:CC"
             sensor: "I1"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG06:CC"
             sensor: "I2"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG07:CC"
             sensor: "I3"
             tcauto: "T3"
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG08:CC"
             sensor: "I4"
             tcauto: "T3"
-        setpoint:
-          opi: "xgs600setpoint"
-          channels:
+            devtype: "img"
+            opi: "xgs600img"
           - name: "GAUG05:CC:SP1"
             sensor: "I1"
             number: "1"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG06:CC:SP2"
             sensor: "I2"
             number: "2"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG07:CC:SP1"
             sensor: "I3"
             number: "1"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           - name: "GAUG08:CC:SP2"
             sensor: "I4"
             number: "2"
+            devtype: "setpoint"
+            opi: "xgs600setpoint"
           
-    - name: "vpcon17"
+    - name: "vpconion17"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129492"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:VAC:VPCON17"
-      iocdir: "agilent-vac"
+      template: "agilent-vac"
       devtype: 4uhv
       devgroup: vpc
       autosync: false
-      gitinit: true
+      
       iocparam:
         - name: "server"
           value: 10.16.4.57 # scelimxa16001
@@ -1314,22 +1463,98 @@ epicsConfiguration:
       opi: "agilent4uhv"
       devices:
         - name: "IONP01"
-          channel: 0
-        - name: "IONP02"
           channel: 1
+        - name: "IONP02"
+          channel: 2
         - name: "IONP03"
-          channel: 
-        - name: "IONP04"
           channel: 3
-    - name: "vpcon19"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129491"
+        - name: "IONP04"
+          channel: 4
+
+    - name: "TEMP-VPCON16"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=138463"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocprefix: "LEL:VAC:VPCON19"
-      iocdir: "agilent-vac"
+      iocprefix: "LEL:VAC:VPCON16"
+      template: "agilent-vac"
       devtype: 4uhv
       devgroup: vpc
       autosync: false
-      gitinit: true
+      
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4006
+      opi: "agilent4uhv"
+      devices:
+        - name: "IONP01"
+          channel: 1
+        - name: "IONP02"
+          channel: 2
+        - name: "IONP03"
+          channel: 3
+        - name: "IONP04"
+          channel: 4
+
+    - name: "TEMP-VPCON18"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=138464"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VPCON18"
+      template: "agilent-vac"
+      devtype: 4uhv
+      devgroup: vpc
+      autosync: false
+      
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4007
+      opi: "agilent4uhv"
+      devices:
+        - name: "IONP01"
+          channel: 1
+        - name: "IONP02"
+          channel: 2
+        - name: "IONP03"
+          channel: 3
+        - name: "IONP04"
+          channel: 4
+
+    - name: "TEMP-VPCON20"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=138465"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VPCON20"
+      template: "agilent-vac"
+      devtype: 4uhv
+      devgroup: vpc
+      autosync: false
+      
+      iocparam:
+        - name: "server"
+          value: 10.16.4.57 # scelimxa16001
+        - name: "port"
+          value: 4008
+      opi: "agilent4uhv"
+      devices:
+        - name: "IONP01"
+          channel: 1
+        - name: "IONP02"
+          channel: 2
+        - name: "IONP03"
+          channel: 3
+        - name: "IONP04"
+          channel: 4
+
+    - name: "vpconion19"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=129491"
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      iocprefix: "LEL:VAC:VPCON19"
+      template: "agilent-vac"
+      devtype: 4uhv
+      devgroup: vpc
+      autosync: false
+      
       iocparam:
         - name: "server"
           value: 10.16.4.57 # scelimxa16001
@@ -1339,22 +1564,22 @@ epicsConfiguration:
       devices:
 
           - name: "IONP05"
-            channel: 0
-          - name: "IONP06"
             channel: 1
-          - name: "IONP07"
+          - name: "IONP06"
             channel: 2
-          - name: "IONP08"
+          - name: "IONP07"
             channel: 3
-    - name: "wgsvpcon01"
+          - name: "IONP08"
+            channel: 4
+    - name: "wgsvpconion01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111743"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:VAC:WGS1:VPCON01"
-      iocdir: "agilent-vac"
+      template: "agilent-vac"
       devtype: 4uhv
       devgroup: vpc
       autosync: false
-      gitinit: true
+      
       iocparam:
         - name: "server"
           value: 10.16.4.58 # scelimxa8001
@@ -1363,22 +1588,22 @@ epicsConfiguration:
       opi: "agilent4uhv"
       devices:
           - name: "IONP01"
-            channel: 0
-          - name: "IONP02"
             channel: 1
-          - name: "IONP03"
+          - name: "IONP02"
             channel: 2
-          - name: "IONP04"
+          - name: "IONP03"
             channel: 3
-    - name: "wgsvpcon02"
+          - name: "IONP04"
+            channel: 4
+    - name: "wgsvpconion02"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2505&objectId=111743"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:VAC:WGS1:VPCON02"
-      iocdir: "agilent-vac"
+      template: "agilent-vac"
       devtype: 4uhv
       devgroup: vpc
       autosync: false
-      gitinit: true
+      
       iocparam:
         - name: "server"
           value: 10.16.4.58 # scelimxa8001
@@ -1387,22 +1612,50 @@ epicsConfiguration:
       opi: "agilent4uhv"
       devices:
           - name: "IONP05"
-            channel: 0
-          - name: "IONP06"
             channel: 1
-          - name: "IONP07"
+          - name: "IONP06"
             channel: 2
-          - name: "IONP08"
+          - name: "IONP07"
             channel: 3
+          - name: "IONP08"
+            channel: 4
 
+    - name: "biltitest-cpsu03"
+      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111616"
+      devtype: bilt-itest
+      template:  "ibilt"
+      devgroup: psu
+      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
+      
+      autosync: false ## restart automatically on changes
+      # carepeater: true ## launch ca repeater, this ioc needs it
+      iocprefix: "LEL:MAG:CPSU03"
+      iocparam:
+        - name: "server"
+          value: 10.16.4.49
+      opi: "biltitest"
+      devices:
+          - name: "HCOR06"
+            channel: 1
+            max: 10
+          - name: "VCOR06"
+            channel: 2
+            max: 10
+          - name: "HCOR07"
+            channel: 3
+            max: 10
+          - name: "VCOR07"
+            channel: 4
+            max: 10
+     
     - name: "sigmaphi-SOL01-SPSU01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111614"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:SPSU01"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1415,10 +1668,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111615"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:SPSU02"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       iocparam:
         - name: "server"
           value: 10.16.4.40
@@ -1430,44 +1683,44 @@ epicsConfiguration:
     - name: "biltitest-cpsu01"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111616"
       devtype: biltitest
-      devgroup: mag
+      devgroup: psu
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      gitinit: true
+      
       autosync: false ## restart automatically on changes
       # carepeater: true ## launch ca repeater, this ioc needs it
       iocprefix: "LEL:MAG:CPSU01"
-      iocdir: "ibilt-test"
+      template:  "ibilt"
       iocparam:
         - name: "server"
           value: 10.16.4.48
       opi: "biltitest"
       devices:
           - name: "HCOR01"
-            id: 1
+            channel: 1
             max: 10
           - name: "VCOR01"
-            id: 2
+            channel: 2
             max: 10
           - name: "HCOR02"
-            id: 3
+            channel: 3
             max: 10
           - name: "VCOR02"
-            id: 4
+            channel: 5
             max: 10
           - name: "HCOR03"
-            id: 5
+            channel: 7
             max: 10
           - name: "VCOR03"
-            id: 6
+            channel: 9
             max: 10
     - name: "sigmaphi-SOL02-SPSU03"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111617"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:SPSU03"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1479,10 +1732,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111618"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:SPSU04"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1493,11 +1746,11 @@ epicsConfiguration:
     - name: "sigmaphi-SOL02-SPSU05"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111615"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocprefix: "LEL:MAG:SPSU02"
-      iocdir: "sigmaphi"
+      iocprefix: "LEL:MAG:SPSU05"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1510,10 +1763,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111620"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:SPSU06"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1525,29 +1778,29 @@ epicsConfiguration:
     - name: "biltitest-cpsu02"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111621"
       devtype: biltitest
-      devgroup: mag
+      devgroup: psu
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      gitinit: true
+      
       autosync: false ## restart automatically on changes
       # carepeater: true ## launch ca repeater, this ioc needs it
       iocprefix: "LEL:MAG:CPSU02"
-      iocdir: "ibilt-test"
+      template:  "ibilt"
       iocparam:
         - name: "server"
           value: 10.16.4.44
       opi: "biltitest"
       devices:
           - name: "HCOR04"
-            id: 1
+            channel: 1
             max: 10
           - name: "VCOR04"
-            id: 2
+            channel: 3
             max: 10
           - name: "HCOR05"
-            id: 3
+            channel: 5
             max: 10
           - name: "VCOR05"
-            id: 4
+            channel: 7
             max: 10
     
 
@@ -1559,10 +1812,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111626"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:DPSU01"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1575,10 +1828,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111623"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:QPSU01"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1591,10 +1844,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111624"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:QPSU02"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1607,10 +1860,10 @@ epicsConfiguration:
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2457&mode=object&objectId=111625"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL:MAG:QPSU03"
-      iocdir: "sigmaphi"
+      template:  "sigmaphi"
       devtype: sigmaphi
-      devgroup: mag
-      gitinit: true
+      devgroup: psu
+      
       opi: "sigmaphi"
       iocparam:
         - name: "server"
@@ -1619,48 +1872,12 @@ epicsConfiguration:
           - name: "QUAD03"
             max: 50
 
-    - name: "motor-tml"
-      asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2447&objectId=133401"
-      charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
-      iocprefix: "LEL:TEST"
-      usegateway: true
-
-      serial:
-        ip: 10.16.4.35
-        port: 4001
-        ptty: /var/tmp/ttyV0
-        baud: 9600
-      dataVolume:
-        accessMode: 'ReadWriteOnce' ## until not enabled shared
-        size: 8Mi
-      gitinit: true
-      autosync: false ## restart automatically on changes
-      devtype: tml
-      devgroup: motor
-      opi: "tml"
-      iocdir: "motor"  
-      motor:
-        hostid: 6
-        jvel: 30
-        hvel: 30
-        axis:
-          - axid: 6
-            name: SCN01:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-            jvel: 50
-            hvel: 50
-          - axid: 4
-            name: SCN02:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
+   
            
     - name: "diag-tml"
       asset: "https://servicedesk.infn.it/secure/ObjectSchema.jspa?id=44&typeId=2447&objectId=133401"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
       iocprefix: "LEL"
-      usegateway: true
-
       serial:
         ip: 10.16.4.57
         port: 4005
@@ -1669,43 +1886,47 @@ epicsConfiguration:
       dataVolume:
         accessMode: 'ReadWriteOnce' ## until not enabled shared
         size: 8Mi
-      gitinit: true
+      
       autosync: false ## restart automatically on changes
       devtype: tml
       devgroup: motor
       opi: "tml"
-      iocdir: "motor"  
+      template:  "motor"  
       motor:
-        hostid: 4
-        jvel: 30
-        hvel: 30
-        axis:
-          - axid: 4
-            name: SCN01:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-            jvel: 50
-            hvel: 50
-          - axid: 5
-            name: SCN02:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-          - axid: 12
-            name: SCN03:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-          - axid: 9
-            name: SCN04:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-          - axid: 7
-            name: SCN05:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
-          - axid: 13
-            name: SCN06:MOT01
-            ustep2mm: 684931.506849
-            velo_max: 200
+        hostid: 1
+        jvel: 200
+        hvel: 200
+      devices:
+        - axid: 1
+          name: SCN01:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 1
+        - axid: 2
+          name: SCN02:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 2
+        - axid: 3
+          name: SCN03:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 3
+        - axid: 4
+          name: SCN04:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 4
+        - axid: 5
+          name: SCN05:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 5
+        - axid: 6
+          name: SCN06:MOT01
+          ustep2mm: 684931.506849
+          velo_max: 200
+          devgroup: screen 6
     - name: "unimag"
       asset: "https://confluence.infn.it/display/SCS/Magnet+SoftIOC+Devil+Wrapper"
       charturl: 'https://baltig.infn.it/epics-containers/ioc-chart.git'
@@ -1852,18 +2073,18 @@ opi:
         value: "{{CONFIG}}"
 nfsMounts:
     - name: data
-      server: 192.168.197.157
-      path: /data_epik8s/eli/data
+      server: 10.16.4.100
+      path: /epik8s_data/data
       mountPath: /nfs/data
       opt: "-o nolock"
     - name: autosave
-      server: 192.168.197.157
-      path: /data_epik8s/eli/autosave
+      server: 10.16.4.100
+      path: /epik8s_data/autosave
       mountPath: /nfs/autosave
       opt: "-o nolock"
     - name: config
-      server: 192.168.197.157
-      path: /data_epik8s/eli/config
+      server: 10.16.4.100
+      path: /epik8s_data/config
       mountPath: /nfs/config
       opt: "-o nolock"
     
