@@ -272,6 +272,8 @@ def main_run():
                 ioc['data_dir']=args.workdir+"/"+ioc_name
                 ioc['autosave_dir']=args.workdir+"/"+ioc_name
                 ioc['epik8s-tools-version']=__version__
+                if 'workdir' in ioc:
+                    ioc['ioctop']=ioc['workdir']
                 if 'nfsMounts' in yamlconf and yamlconf['nfsMounts']:
                     ioc['nfsMounts']=yamlconf['nfsMounts']
                     for k in ioc['nfsMounts']:

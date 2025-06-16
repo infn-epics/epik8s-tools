@@ -4,6 +4,28 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+         {
+            "name": "Python: RUN IOC on ELI libera-spe",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "tests/eli_values.yaml",
+                    "bdelilibera01",
+                    "--native",
+                    "--rm",
+                    "--templatedir","tests/templates_dir",
+                    "--workdir", "/tmp"
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
         {
             "name": "Python: RUN IOC on TPG300",
             "type": "python",
