@@ -9,7 +9,7 @@ import argparse
 from datetime import datetime
 from epik8s_tools import __version__
 import subprocess  # For running Docker commands
-from epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
+from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
 
 
 def copytree(template_dir, config_dir):

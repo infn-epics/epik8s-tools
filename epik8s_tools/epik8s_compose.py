@@ -5,7 +5,7 @@ import shutil
 from jinja2 import Template
 from epik8s_tools import __version__
 import yaml
-from epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
+from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
 
 
 def copy_directory(src, dest):
