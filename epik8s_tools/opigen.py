@@ -2,6 +2,7 @@ import yaml
 import argparse
 import subprocess
 import os
+import copy
 import ast
 import shutil  # For removing directories
 from epik8s_tools.epik8s_gen import render_template,create_values_yaml,generate_readme
@@ -161,7 +162,26 @@ def main_opigen():
             devgroups[devgroup][devtype] = []
           
         if 'opi' in device and 'url' in device['opidesc'] and 'main' in device['opidesc']:
-            devgroups[devgroup][devtype].append(device)
+            if 'devices' in device:
+
+                for dev in device['devices']:
+                    mdev=copy.deepcopy(device)
+                    del mdev['devices']
+                    for keys in dev:
+                        mdev[keys]=dev[keys]
+                    mdev['devname']=dev['name']
+
+                    if 'opi' in mdev:
+                        opidesc=conf['opi'][mdev['opi']]
+
+                        templ = Template(str(opidesc))
+                        opi_section=ast.literal_eval(templ.render(mdev))
+                        mdev['opidesc']=opi_section
+                    
+                    devgroups[devgroup][devtype].append(mdev)
+
+            else:
+                devgroups[devgroup][devtype].append(device)
 
     # Loop over each devgroup and create a tab for it
     for devgroup in devgroups:

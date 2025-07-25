@@ -283,7 +283,11 @@ def main_run():
                 ## unroll iocparam
                 if 'iocparam' in ioc:
                     for p in ioc['iocparam']:
-                        ioc[p['name']]=p['value']
+                        if 'name' in p and 'value' in p:
+                            ioc[p['name']]=p['value']
+                        else:
+                            print(f"## Error: Invalid iocparam entry in IOC '{ioc_name}': {p}")
+                            exit(1)
                     del ioc['iocparam']
                           
                 iocrunlist.append(ioc)

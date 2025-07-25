@@ -258,42 +258,42 @@
                 
             }
         },
-        {
-            "name": "Python: OPIGEN EUAPS",
-            "type": "python",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
-            "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
-            "args":[
-                    "--yaml", "epik8s-euaps/deploy/values.yaml",
-                    "--projectdir", "euaps-test-opi"
-                ],
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
-        {
-            "name": "Python: COMPOSE EUAPS",
-            "type": "python",
-            "request": "launch",
-            "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
-            "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
-            "args":[
-                    "--config", "epik8s-euaps/deploy/values.yaml",
-                    "--host-dir", "./epik8s-euaps/config",
-                    "--output", "./tests/docker-control-euaps",
-                    "--pvaport","5175"
-                ],
-            "justMyCode": true,
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}"
-            }
-        },
+        // {
+        //     "name": "Python: OPIGEN EUAPS",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "cwd": "${workspaceFolder}",
+        //     "program": "${workspaceFolder}/epik8s_tools/opigen.py",
+        //     "console": "integratedTerminal",
+        //     //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+        //     "args":[
+        //             "--yaml", "epik8s-euaps/deploy/values.yaml",
+        //             "--projectdir", "euaps-test-opi"
+        //         ],
+        //     "justMyCode": true,
+        //     "env": {
+        //         "PYTHONPATH": "${workspaceFolder}"
+        //     }
+        // },
+        // {
+        //     "name": "Python: COMPOSE EUAPS",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "cwd": "${workspaceFolder}",
+        //     "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+        //     "console": "integratedTerminal",
+        //     //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+        //     "args":[
+        //             "--config", "epik8s-euaps/deploy/values.yaml",
+        //             "--host-dir", "./epik8s-euaps/config",
+        //             "--output", "./tests/docker-control-euaps",
+        //             "--pvaport","5175"
+        //         ],
+        //     "justMyCode": true,
+        //     "env": {
+        //         "PYTHONPATH": "${workspaceFolder}"
+        //     }
+        // },
         {
             "name": "Python: OPIGEN SPARC",
             "type": "python",
@@ -305,6 +305,23 @@
             "args":[
                     "--yaml", "tests/sparc_values.yaml",
                     "--projectdir", "sparc-test-opi"
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Python: OPIGEN EUAPS",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/epik8s_tools/opigen.py",
+            "console": "integratedTerminal",
+            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "args":[
+                    "--yaml", "tests/euaps_values.yaml",
+                    "--projectdir", "euaps-test-opi"
                 ],
             "justMyCode": true,
             "env": {
