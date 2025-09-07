@@ -59,7 +59,7 @@ This documentation is automatically generated on {{time}} by *epik8s-tools* ({{v
 {%- set ctx_macro = "-" %}
 {%- set template = "-" %}
 
-{%- if ioc.opi %}
+{%- if ioc.opi and ioc.opinfo %}
 {%- set opiurl = ioc.opinfo.url %}
 {%- set opimain = ioc.opinfo.main %}
 {%- set ctx_macro = ioc.opinfo.macroinfo %}

@@ -92,14 +92,25 @@ def main_opigen():
         print("%% iocs not present in configuration")
         return
     config = conf['epicsConfiguration']['iocs']
-    for device in config:
+    for index,device in enumerate(config):
         if 'opi' in device and not isinstance(device['opi'], str):
             print(f"## opi field in device {device['name']} is not a string")
             return
-        if 'opi' in device and not device['opi'] in conf['opi']:
-            print(f"## opi '{device['opi']}' in '{device['name']}', not found in {args.yaml}")
-            return
-    config = [device for device in config if 'opi' in device and 'url' in conf['opi'][device['opi']]]
+        if 'opi' in device:
+            if not device['opi'] in conf['opi']:
+                if 'devtype' in device and device['devtype'] in conf['opi']:
+                    config[index]['opi']=device['devtype']
+                    print(f"% found opi as devtype '{config[index]['opi']}' in '{device['name']}'")
+
+                elif 'template' in device and device['template'] in conf['opi']:
+                    config[index]['opi']=device['template']
+                    print(f"% found opi as template '{config[index]['opi']}' in '{device['name']}'")
+
+                else:
+                    print(f"%% opi '{device['opi']}' in '{device['name']}', not found in {args.yaml}")
+                    del config[index]
+                    continue
+    config = [device for device in config if 'opi' in device and device['opi'] in conf['opi'] and 'url' in conf['opi'][device['opi']]]
     config = [device for device in config if args.controls==None or device['name'] in args.controls]
 
     # Clone each unique OPI URL if it hasn’t been cloned already
