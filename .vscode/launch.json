@@ -6,7 +6,7 @@
     "configurations": [
          {
             "name": "Python: RUN IOC on ELI libera-spe",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",

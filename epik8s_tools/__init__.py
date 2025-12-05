@@ -5,7 +5,7 @@
 #from .epik8s_gen import main
 #from .epik8s_run import main_run
 
-__version__ = "0.9.14"
+__version__ = "0.9.15"
 
 __all__ = [
     "main",

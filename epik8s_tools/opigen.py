@@ -182,7 +182,7 @@ def main_opigen():
                         mdev[keys]=dev[keys]
                     mdev['devname']=dev['name']
 
-                    if 'opi' in mdev:
+                    if 'opi' in mdev and mdev['opi'] in conf['opi']:
                         opidesc=conf['opi'][mdev['opi']]
 
                         templ = Template(str(opidesc))
