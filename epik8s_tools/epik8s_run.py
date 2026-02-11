@@ -2,6 +2,7 @@ import yaml
 import os
 import ast
 import shutil
+import glob
 import jinja2
 from jinja2 import Environment, FileSystemLoader,Template
 from collections import OrderedDict
@@ -156,6 +157,23 @@ def iocrun(iocs, appargs):
                 dump_exec(config_dir)
                 run_jnjrender(template_dir,config_file,config_dir)
                 
+                # Apply global template overrides if available
+                global_template_dir = os.path.join(appargs.templatedir, "ibek-templates", "global")
+                if os.path.isdir(global_template_dir):
+                    print("* applying global template overrides")
+                    run_jnjrender(global_template_dir, config_file, config_dir)
+                    # Append global.yaml content to all other yaml files and remove global.yaml
+                    global_yaml_path = os.path.join(config_dir, "global.yaml")
+                    if os.path.exists(global_yaml_path):
+                        for yaml_file in glob.glob(os.path.join(config_dir, "*.yaml")):
+                            if yaml_file != global_yaml_path:
+                                with open(yaml_file, 'a') as yf:
+                                    yf.write("\n")
+                                    with open(global_yaml_path, 'r') as gf:
+                                        yf.write(gf.read())
+                                print(f"* appended global.yaml to {yaml_file}")
+                        os.remove(global_yaml_path)
+
                 ibek_count += 1
                 ioc['ibek'] = True
                 continue  # Skip the default jnjrender call below if template was used
