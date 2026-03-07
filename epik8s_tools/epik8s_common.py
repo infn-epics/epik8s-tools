@@ -201,3 +201,24 @@ fi""")
     result = subprocess.run([script_path])
 
     return result.returncode
+
+
+def apply_ioc_defaults(values):
+    """Merge iocDefaults into each IOC entry. IOC-specific values always override defaults."""
+    ioc_defaults = values.get("iocDefaults") or {}
+    if not ioc_defaults:
+        return values
+    epics_config = values.get("epicsConfiguration", {})
+    iocs = epics_config.get("iocs")
+    if not iocs:
+        return values
+    merged = []
+    for ioc in iocs:
+        tmpl = ioc.get("template") or ioc.get("devtype") or ""
+        tmpl_defaults = ioc_defaults.get(tmpl)
+        if tmpl_defaults:
+            merged.append({**tmpl_defaults, **ioc})
+        else:
+            merged.append(ioc)
+    epics_config["iocs"] = merged
+    return values

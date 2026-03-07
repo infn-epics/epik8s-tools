@@ -8,6 +8,7 @@ from collections import OrderedDict
 import argparse
 from datetime import datetime
 from epik8s_tools import __version__
+from epik8s_tools.epik8s_common import apply_ioc_defaults
 
 def render_template(template_path, context):
     """Render a Jinja2 template with the given context."""
@@ -25,6 +26,7 @@ def load_values_yaml(fil, script_dir):
 
 def generate_readme(values, dir, output_file):
     """Render the Jinja2 template using YAML data and write to README.md."""
+    apply_ioc_defaults(values)
     yaml_data=values
     yaml_data['iocs'] = values['epicsConfiguration']['iocs']
     yaml_data['services'] = values['epicsConfiguration']['services']
@@ -120,6 +122,7 @@ def create_project(project_name, replacements):
     
     create_directory_tree(project_name)
     values = yaml.safe_load(rendered_values)
+    apply_ioc_defaults(values)
     values['iocs'] = values['epicsConfiguration']['iocs']
     values['services'] = values['epicsConfiguration']['services']
     values['cagatewayip']=replacements['cagatewayip']

@@ -6,6 +6,7 @@ import copy
 import ast
 import shutil  # For removing directories
 from epik8s_tools.epik8s_gen import render_template,create_values_yaml,generate_readme
+from epik8s_tools.epik8s_common import apply_ioc_defaults
 from jinja2 import Template
 
 from phoebusgen import screen as screen
@@ -85,6 +86,7 @@ def main_opigen():
     # Load YAML configuration
     with open(args.yaml, 'r') as f:
         conf = yaml.safe_load(f)
+    apply_ioc_defaults(conf)
     if not 'epicsConfiguration' in conf:
         print("## epicsConfiguration not present in configuration")
         return

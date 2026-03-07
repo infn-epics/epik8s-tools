@@ -10,7 +10,7 @@ import argparse
 from datetime import datetime
 from epik8s_tools import __version__
 import subprocess  # For running Docker commands
-from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
+from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote,apply_ioc_defaults
 
 
 def copytree(template_dir, config_dir):
@@ -80,6 +80,7 @@ def load_values_yaml(fil, script_dir):
 
 def generate_readme(values, dir, output_file):
     """Render the Jinja2 template using YAML data and write to README.md."""
+    apply_ioc_defaults(values)
     yaml_data=values
     yaml_data['iocs'] = values['epicsConfiguration']['iocs']
     yaml_data['services'] = values['epicsConfiguration']['services']
@@ -259,6 +260,7 @@ def main_run():
     yamlconf=None
     with open(args.yaml_file, 'r') as file:
         yamlconf = yaml.safe_load(file)
+    apply_ioc_defaults(yamlconf)
 
     ## get ioc lists
     iocs=[]

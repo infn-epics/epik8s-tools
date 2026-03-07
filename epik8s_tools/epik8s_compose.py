@@ -5,7 +5,7 @@ import shutil
 from jinja2 import Template
 from epik8s_tools import __version__
 import yaml
-from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote
+from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote,apply_ioc_defaults
 
 
 def copy_directory(src, dest):
@@ -68,6 +68,7 @@ def generate_docker_compose_and_configs(output_dir, args, caport, pvaport, ingre
     config_yaml = os.path.join(output_dir, "config.yaml")
     host_dir = "./config"
     config = parse_config(config_yaml)
+    apply_ioc_defaults(config)
 
     docker_compose = {'services': {}}
     epics_config = config.get('epicsConfiguration', {})
