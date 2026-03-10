@@ -2,67 +2,157 @@ import yaml
 import argparse
 import subprocess
 import os
-import copy
-import ast
-import shutil  # For removing directories
-from epik8s_tools.epik8s_gen import render_template,create_values_yaml,generate_readme
+import shutil
+from epik8s_tools.epik8s_gen import render_template, create_values_yaml
 from epik8s_tools.epik8s_common import apply_ioc_defaults
-from jinja2 import Template
 
 from phoebusgen import screen as screen
 from phoebusgen import widget as widget
 from epik8s_tools import __version__
 
+# Devgroups with YAML-driven array widgets in epik8s-opi.
+# These use YAMLLoadDevicePopulateArray.py at runtime to dynamically
+# populate the device list from values.yaml.
+DEVGROUP_WIDGET = {
+    'mag':  {'widget_dir': 'unimag-opi',  'main_bob': 'mag.bob'},
+    'vac':  {'widget_dir': 'univac-opi',  'main_bob': 'vac_array.bob'},
+    'mot':  {'widget_dir': 'unimot-opi',  'main_bob': 'mot_array.bob'},
+    'io':   {'widget_dir': 'uniio-opi',   'main_bob': 'io_array.bob'},
+    'cool': {'widget_dir': 'unicool-opi', 'main_bob': 'cool_array.bob'},
+}
+
+# Devgroup -> epik8s-opi widget directory for per-device OPI lookup
+DEVGROUP_OPI_DIR = {
+    'mag': 'unimag-opi', 'vac': 'univac-opi', 'mot': 'unimot-opi',
+    'io': 'uniio-opi', 'cool': 'unicool-opi', 'cam': 'unicam-opi',
+    'rf': 'unimod-opi', 'modulator': 'unimod-opi',
+    'diag': 'tektronix-opi',
+}
+
+# Human-readable tab labels
+DEVGROUP_LABELS = {
+    'mag': 'Magnets', 'vac': 'Vacuum', 'mot': 'Motors', 'io': 'IO',
+    'cool': 'Cooling', 'cam': 'Cameras', 'diag': 'Diagnostics',
+    'rf': 'RF', 'modulator': 'Modulators', 'timing': 'Timing',
+}
+
+DEFAULT_EPIK8S_OPI_URL = 'https://baltig.infn.it/epics-containers/epik8s-opi.git'
+
+
+def _resolve_opi_path(devgroup, opi_value, epik8s_opi_path):
+    """Resolve an OPI field value to a relative path within epik8s-opi."""
+    # Try devgroup-specific directory first
+    opi_dir = DEVGROUP_OPI_DIR.get(devgroup)
+    if opi_dir:
+        if os.path.exists(os.path.join(epik8s_opi_path, opi_dir, opi_value)):
+            return f"epik8s-opi/{opi_dir}/{opi_value}"
+
+    # Try all known widget directories
+    for d in set(DEVGROUP_OPI_DIR.values()):
+        if os.path.exists(os.path.join(epik8s_opi_path, d, opi_value)):
+            return f"epik8s-opi/{d}/{opi_value}"
+
+    # Try directly in epik8s-opi root
+    if os.path.exists(os.path.join(epik8s_opi_path, opi_value)):
+        return f"epik8s-opi/{opi_value}"
+
+    return None
+
+
+def build_standard_group(devgroup, zones, width, height):
+    """Build a Group widget with zone NavigationTabs for a standard devgroup.
+
+    Uses the YAML-driven array display pattern where devices are populated
+    at runtime from the values.yaml via YAMLLoadDevicePopulateArray.py.
+    """
+    wmap = DEVGROUP_WIDGET[devgroup]
+    # CONFFILE relative to the display that runs the script
+    # (e.g. epik8s-opi/{widget_dir}/{group}_display.bob -> ../../values.yaml)
+    conffile = '../../values.yaml'
+    bob_path = f"epik8s-opi/{wmap['widget_dir']}/{wmap['main_bob']}"
+
+    grp = widget.Group(f"uni{devgroup}", 0, 0, width, height)
+    grp.macro("CONFFILE", conffile)
+    grp.macro("GROUP", devgroup)
+
+    zone_list = ['ALL'] + sorted(zones - {'ALL'})
+    nav = widget.NavigationTabs(f"zone-{devgroup}", 0, 0, width, height)
+    nav.direction(0)
+    for zone in zone_list:
+        nav.tab(zone, bob_path, "", {"ZONE": zone})
+    grp.add_widget(nav)
+    return grp
+
+
+def build_device_navtabs(devgroup, iocs, width, height, epik8s_opi_path):
+    """Build NavigationTabs with per-device OPI for non-standard devgroups."""
+    nav = widget.NavigationTabs(f"nav-{devgroup}", 0, 0, width, height)
+    nav.direction(0)
+    count = 0
+
+    for ioc in iocs:
+        iocprefix = ioc.get('iocprefix', '')
+        iocroot = ioc.get('iocroot', '')
+        opi_field = ioc.get('opi', '')
+
+        devices = ioc.get('devices', [])
+        if not devices:
+            devices = [{'name': ioc.get('name', '')}]
+
+        for dev in devices:
+            devname = dev.get('name', '')
+            if iocroot:
+                full_root = f"{iocroot}:{devname}" if devname else iocroot
+            else:
+                full_root = devname
+
+            dev_opi = dev.get('opi', opi_field)
+            if not dev_opi:
+                continue
+
+            bob_path = _resolve_opi_path(devgroup, dev_opi, epik8s_opi_path)
+            if not bob_path:
+                continue
+
+            macros = {
+                "P": iocprefix, "R": full_root, "NAME": devname,
+                "DEVICE": iocprefix, "CAM": full_root,
+            }
+            tab_name = devname if devname else ioc.get('name', '')
+            nav.tab(tab_name, bob_path, "", macros)
+            count += 1
+
+    return nav if count > 0 else None
+
+
 def main_opigen():
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
 
-    # Set up command-line argument parsing
-    parser = argparse.ArgumentParser(description="Generate a Phoebus display with tabs from a EPIK8s YAML configuration.",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "--yaml",
-        type=str,
-        help="Path to the EPIK8s YAML configuration file."
-    )
-    parser.add_argument("--version", action="store_true", help="Show the version and exit")  # Add this option
-
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="Launcher.bob",
-        help="Main opi name"
-    )
-    parser.add_argument(
-        "--title",
-        type=str,
-        default="Test Launcher",
-        help="Title for the launcher"
-    )
-    parser.add_argument(
-        "--clone-dir",
-        type=str,
-        default="opi-repos",
-        help="Directory to clone the OPI GIT REPOS"
-    )
-    parser.add_argument(
-        "--projectdir",
-        type=str,
-        help="Directory where all project files will be generated"
-    )
-    parser.add_argument(
-        "--width",
-        type=int,
-        default=1900,
-        help="Width of the launcher screen (default: 1900)"
-    )
-    parser.add_argument(
-        "--height",
-        type=int,
-        default=1400,
-        help="Height of the launcher screen (default: 1400)"
-    )
-    
-    parser.add_argument('--controls', nargs='+', help="Include just the given controls (default ALL).")
+    parser = argparse.ArgumentParser(
+        description="Generate a Phoebus display from an EPIK8s YAML configuration using epik8s-opi widgets.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--yaml", type=str,
+                        help="Path to the EPIK8s YAML configuration file.")
+    parser.add_argument("--version", action="store_true",
+                        help="Show the version and exit")
+    parser.add_argument("--output", type=str, default="Launcher.bob",
+                        help="Main opi name")
+    parser.add_argument("--title", type=str, default="Test Launcher",
+                        help="Title for the launcher")
+    parser.add_argument("--projectdir", type=str,
+                        help="Directory where all project files will be generated")
+    parser.add_argument("--width", type=int, default=1900,
+                        help="Width of the launcher screen")
+    parser.add_argument("--height", type=int, default=1400,
+                        help="Height of the launcher screen")
+    parser.add_argument('--controls', nargs='+',
+                        help="Include just the given controls (default ALL).")
+    parser.add_argument("--epik8s-opi-url", type=str, default=DEFAULT_EPIK8S_OPI_URL,
+                        help="Git URL for epik8s-opi widget library")
+    parser.add_argument("--epik8s-opi-branch", type=str, default="main",
+                        help="Branch of epik8s-opi to clone")
+    parser.add_argument("--epik8s-opi-dir", type=str, default=None,
+                        help="Path to existing epik8s-opi directory (skip cloning)")
 
     args = parser.parse_args()
     if args.version:
@@ -70,196 +160,114 @@ def main_opigen():
         return
 
     if not args.yaml:
-        print(f"# must define a valid epik8s configuration yaml --yaml <configuration>")
+        print("# must define a valid epik8s configuration yaml --yaml <configuration>")
         return -1
-    
+
     if not args.projectdir:
-        print(f"# must define an output projectdir --projectdir <project output directory>")
+        print("# must define an output projectdir --projectdir <project output directory>")
         return -2
-    # Define the project directory to store all generated files
+
     project_dir = os.path.abspath(args.projectdir)
-    if not os.path.exists(project_dir):
-        os.makedirs(project_dir)
-        print(f"Created project directory: {project_dir}")
-    
+    os.makedirs(project_dir, exist_ok=True)
 
     # Load YAML configuration
     with open(args.yaml, 'r') as f:
         conf = yaml.safe_load(f)
     apply_ioc_defaults(conf)
-    if not 'epicsConfiguration' in conf:
+
+    if 'epicsConfiguration' not in conf:
         print("## epicsConfiguration not present in configuration")
         return
-    if not 'iocs' in conf['epicsConfiguration']:
+    if 'iocs' not in conf['epicsConfiguration']:
         print("%% iocs not present in configuration")
         return
-    config = conf['epicsConfiguration']['iocs']
-    for index,device in enumerate(config):
-        if 'opi' in device and not isinstance(device['opi'], str):
-            print(f"## opi field in device {device['name']} is not a string")
-            return
-        if 'opi' in device:
-            if not device['opi'] in conf['opi']:
-                if 'devtype' in device and device['devtype'] in conf['opi']:
-                    config[index]['opi']=device['devtype']
-                    print(f"% found opi as devtype '{config[index]['opi']}' in '{device['name']}'")
 
-                elif 'template' in device and device['template'] in conf['opi']:
-                    config[index]['opi']=device['template']
-                    print(f"% found opi as template '{config[index]['opi']}' in '{device['name']}'")
+    iocs = conf['epicsConfiguration']['iocs']
 
-                else:
-                    print(f"%% opi '{device['opi']}' in '{device['name']}', not found in {args.yaml}")
-                    del config[index]
-                    continue
-    config = [device for device in config if 'opi' in device and device['opi'] in conf['opi'] and 'url' in conf['opi'][device['opi']]]
-    config = [device for device in config if args.controls==None or device['name'] in args.controls]
+    # Setup epik8s-opi widget library
+    epik8s_opi_path = os.path.join(project_dir, 'epik8s-opi')
+    if args.epik8s_opi_dir:
+        src = os.path.abspath(args.epik8s_opi_dir)
+        if not os.path.exists(epik8s_opi_path):
+            os.symlink(src, epik8s_opi_path)
+            print(f"Linked epik8s-opi from {src}")
+    elif not os.path.exists(epik8s_opi_path):
+        print(f"Cloning epik8s-opi from {args.epik8s_opi_url} (branch {args.epik8s_opi_branch})")
+        subprocess.run(["git", "clone", "--depth", "1", "-b", args.epik8s_opi_branch,
+                         "--recurse-submodules", args.epik8s_opi_url, epik8s_opi_path])
+        git_dir = os.path.join(epik8s_opi_path, ".git")
+        if os.path.exists(git_dir):
+            shutil.rmtree(git_dir)
 
-    # Clone each unique OPI URL if it hasn’t been cloned already
-    cloned_urls = set()
-    for device in config:  
-        opidesc=conf['opi'][device['opi']]
-        if 'iocparam' in device:
-            for p in device['iocparam']:
-                device[p['name']]=p['value']
-        device['beamline']=conf['beamline']         
-        templ = Template(str(opidesc))
-        opi_section=ast.literal_eval(templ.render(device))
-        device['opidesc']=opi_section
-        opi_url = opi_section.get('url')
-        clonedirfull = os.path.join(project_dir, args.clone_dir)
+    # Copy values.yaml to project dir for runtime use by epik8s-opi scripts
+    values_dest = os.path.join(project_dir, 'values.yaml')
+    shutil.copy2(args.yaml, values_dest)
+    print(f"Copied {args.yaml} to {values_dest}")
 
-        if opi_url and opi_url not in cloned_urls:
-            clone_path = os.path.join(clonedirfull, os.path.basename(opi_url))
-            if not os.path.exists(clone_path):
-                print(f"Cloning {opi_url} into {clone_path}")
-                subprocess.run(["git", "clone", "--depth","1", opi_url, clone_path,"--recurse-submodules"])
-            else:
-                print(f"Repository {opi_url} already cloned in {clone_path}.")
-            
-            # Remove the .git directory to strip Git history
-            git_dir = os.path.join(clone_path, ".git")
-            if os.path.exists(git_dir):
-                print(f"Removing .git directory from {clone_path}")
-                shutil.rmtree(git_dir)
+    # Collect devgroups with their zones and IOCs
+    devgroups = {}
+    for ioc in iocs:
+        if args.controls and ioc.get('name') not in args.controls:
+            continue
+        dg = ioc.get('devgroup', '')
+        if not dg:
+            continue
+        if dg not in devgroups:
+            devgroups[dg] = {'zones': set(), 'iocs': []}
+        zones = ioc.get('zones', 'ALL')
+        if isinstance(zones, str):
+            devgroups[dg]['zones'].add(zones)
+        elif isinstance(zones, list):
+            devgroups[dg]['zones'].update(zones)
+        devgroups[dg]['iocs'].append(ioc)
 
-            cloned_urls.add(opi_url)
-
-    # Create Phoebus screen with specified dimensions and NavigationTabs for tab layout
+    # Create Launcher screen
     launcher_screen = screen.Screen(args.title, os.path.join(project_dir, args.output))
     launcher_screen.width(args.width)
     launcher_screen.height(args.height)
-    group_taps = widget.Tabs("group", 0, 0, args.width, args.height)
 
-    # Group devices by 'devgroup'
-    devgroups = {}
-    devtypegroup = {}
-    for device in config:
-        if not 'devgroup' in device:
-            devgroup = "ukngroup"
-            device['devgroup'] = "ukngroup"
+    group_tabs = widget.Tabs("groups", 0, 0, args.width, args.height)
+
+    for devgroup in sorted(devgroups.keys()):
+        info = devgroups[devgroup]
+        label = DEVGROUP_LABELS.get(devgroup, devgroup.title())
+
+        if devgroup in DEVGROUP_WIDGET:
+            # YAML-driven array widget: devices populated at runtime from values.yaml
+            group_tabs.tab(label)
+            grp = build_standard_group(devgroup, info['zones'],
+                                       args.width, args.height - 50)
+            group_tabs.add_widget(label, grp)
+            print(f"+ {label} [{devgroup}]: YAML-driven, "
+                  f"zones: {sorted(info['zones'])}, {len(info['iocs'])} IOCs")
         else:
-            devgroup = device.get('devgroup')
-
-        if not 'devtype' in device:
-            devtype = "ukntype"
-            device['devtype'] = "ukntype"
-        else:
-            devtype = device.get('devtype')
-
-        if devgroup not in devgroups:
-            devgroups[devgroup] = {}
-            devgroups[devgroup][devtype] = []
-        
-        if devtype not in devgroups[devgroup]:
-            devgroups[devgroup][devtype] = []
-          
-        if 'opi' in device and 'url' in device['opidesc'] and 'main' in device['opidesc']:
-            if 'devices' in device:
-
-                for dev in device['devices']:
-                    mdev=copy.deepcopy(device)
-                    del mdev['devices']
-                    for keys in dev:
-                        mdev[keys]=dev[keys]
-                    mdev['devname']=dev['name']
-
-                    if 'opi' in mdev and mdev['opi'] in conf['opi']:
-                        opidesc=conf['opi'][mdev['opi']]
-
-                        templ = Template(str(opidesc))
-                        opi_section=ast.literal_eval(templ.render(mdev))
-                        mdev['opidesc']=opi_section
-                    
-                    devgroups[devgroup][devtype].append(mdev)
-
+            # Per-device NavigationTabs using device opi field resolved in epik8s-opi
+            nav = build_device_navtabs(devgroup, info['iocs'],
+                                       args.width, args.height - 50,
+                                       epik8s_opi_path)
+            if nav:
+                group_tabs.tab(label)
+                group_tabs.add_widget(label, nav)
+                print(f"+ {label} [{devgroup}]: per-device, {len(info['iocs'])} IOCs")
             else:
-                devgroups[devgroup][devtype].append(device)
+                print(f"! {label} [{devgroup}]: no matching OPI in epik8s-opi, skipped")
 
-    # Loop over each devgroup and create a tab for it
-    for devgroup in devgroups:
-        # Create a tab for each devgroup
-        devgroup_tab = group_taps.tab(devgroup)
-        type_tabs = widget.Tabs(f"tab-{devgroup}-type", 0, 0, args.width, args.height)
-
-        for devtype in devgroups[devgroup]:
-            if len(devgroups[devgroup][devtype]) == 0:
-                print(f"no device {devtype} of group {devgroup}")
-                continue
-            type_tabs.tab_direction_vertical()
-            type_tabs.tab(f"{devtype}")
-
-            nav_tab = widget.NavigationTabs(f"nav-{devgroup}-{devtype}", 0, 0, args.width, args.height)
-
-            for device in devgroups[devgroup][devtype]:
-                # Extract opi section and macros
-                opi_section = device.get('opidesc', {})
-                main_bob = opi_section.get('main')
-                macros = opi_section.get('macro', [])
-                opi_url = opi_section.get('url')
-
-                macro_values = {macro['name']: macro['value'] for macro in macros}
-
-                # Set the action path to the cloned directory
-                action_path = os.path.join(args.clone_dir, os.path.basename(opi_url), main_bob)
-
-                # Add an action button to call the .bob file with macros in each tab
-                print(f"* adding {device['name']} group: {devgroup} type: {devtype} opi {action_path} to nav")
-                nav_tab.tab(f"{device['name']}", action_path, devgroup, macro_values)
-            print(f"* adding nav to tab {devtype}")
-            type_tabs.add_widget(f"{devtype}", nav_tab)
-        print(f"* adding tab {devtype} to tab {devgroup}")
-        group_taps.add_widget(f"{devgroup}", type_tabs)
-
-    # Add NavigationTabs to the screen and save
-    launcher_screen.add_widget(group_taps)
+    launcher_screen.add_widget(group_tabs)
     launcher_screen.write_screen()
-    print(f"Generated Phoebus launcher with tabs at {os.path.join(project_dir, args.output)} titled '{args.title}'")
-    
-    if not 'gateway' in conf['epicsConfiguration']['services'] and not 'loadbalancer' in conf['epicsConfiguration']['services']['gateway']:
-        print("%% no cagateway service with loadbalancer no connection with cluster possible")
-        conf['cagatewayip'] = None
-    else:
-        conf['cagatewayip'] = conf['epicsConfiguration']['services']['gateway']['loadbalancer']
-    
-    if not 'pvagateway' in conf['epicsConfiguration']['services'] and not 'loadbalancer' in conf['epicsConfiguration']['services']['pvagateway']:
-        print("%% no pvagateway service with loadbalancer specified no PVA gateway")
-        conf['pvagatewayip'] = None
-    else:
-        conf['pvagatewayip'] = conf['epicsConfiguration']['services']['pvagateway']['loadbalancer']
+    print(f"\nGenerated {os.path.join(project_dir, args.output)} titled '{args.title}'")
+
+    # Generate settings.ini
+    services = conf.get('epicsConfiguration', {}).get('services', {})
+    ca_gw = services.get('gateway', {})
+    pva_gw = services.get('pvagateway', {})
 
     replacements = {
-        "beamline": conf['beamline'],
-        "namespace": conf['namespace'],
-        "dnsnamespace": conf['epik8namespace'],
-        "cagatewayip": conf['cagatewayip'],
-        "pvagatewayip": conf['pvagatewayip'],
+        "beamline": conf.get('beamline', ''),
+        "namespace": conf.get('namespace', ''),
+        "dnsnamespace": conf.get('epik8namespace', ''),
+        "cagatewayip": ca_gw.get('loadbalancer', '') if isinstance(ca_gw, dict) else '',
+        "pvagatewayip": pva_gw.get('loadbalancer', '') if isinstance(pva_gw, dict) else '',
     }
     rendered_settings = render_template(script_dir + 'settings.ini', replacements)
-
     create_values_yaml('settings.ini', rendered_settings, f'{project_dir}/')
-    print(f"* created {project_dir}/settings.ini")
-    generate_readme(conf, script_dir, f"{project_dir}/README.md")
-
-if __name__ == "__main__":
-    main_opigen()
+    print(f"Generated settings.ini in {project_dir}")

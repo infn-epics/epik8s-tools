@@ -12,6 +12,11 @@ from epik8s_tools import __version__
 import subprocess  # For running Docker commands
 from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote,apply_ioc_defaults
 
+# Default git repositories for ibek-templates and ibek-support
+DEFAULT_IBEK_TEMPLATES_URL = "https://github.com/infn-epics/ibek-templates.git"
+DEFAULT_IBEK_SUPPORT_URL = "https://github.com/epics-containers/ibek-support.git"
+DEFAULT_IBEK_SUPPORT_INFN_URL = "https://github.com/infn-epics/ibek-support-infn.git"
+
 
 def copytree(template_dir, config_dir):
     for item in os.listdir(template_dir):
@@ -214,6 +219,189 @@ def iocrun(iocs, appargs):
         
     
 
+def git_clone_repo(url, dest, branch="main"):
+    """Clone a git repository to dest, or skip if already present."""
+    if os.path.isdir(dest) and os.listdir(dest):
+        print(f"* Using existing directory: {dest}")
+        return
+    print(f"* Cloning {url} (branch: {branch}) -> {dest}")
+    result = subprocess.run(
+        ["git", "clone", "--depth", "1", "-b", branch, url, dest],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"Error: Failed to clone {url}: {result.stderr}")
+        exit(1)
+
+
+def collect_ibek_defs(ibek_defs_dir, sources):
+    """Collect .ibek.support.yaml files from multiple source directories into ibek_defs_dir via symlinks."""
+    os.makedirs(ibek_defs_dir, exist_ok=True)
+    count = 0
+    for source in sources:
+        if not os.path.isdir(source):
+            continue
+        for root, dirs, files in os.walk(source):
+            for f in files:
+                if f.endswith('.ibek.support.yaml'):
+                    src_path = os.path.join(root, f)
+                    dst_path = os.path.join(ibek_defs_dir, f)
+                    if os.path.exists(dst_path):
+                        os.remove(dst_path)
+                    os.symlink(os.path.abspath(src_path), dst_path)
+                    print(f"  - linked {f} from {root}")
+                    count += 1
+    print(f"* Collected {count} ibek definition files in {ibek_defs_dir}")
+
+
+def iocrun_dev(iocs, appargs):
+    """Run IOCs in development mode: download ibek-templates and ibek-support,
+    render templates with jnjrender, generate runtime with ibek, and launch."""
+    dev_dir = os.path.abspath(appargs.dev_dir)
+    workdir = os.path.abspath(appargs.workdir)
+    deps_dir = os.path.join(workdir, ".epik8s-deps")
+    os.makedirs(deps_dir, exist_ok=True)
+
+    # 1. Clone or reuse ibek-templates
+    templates_dir = os.path.join(deps_dir, "ibek-templates")
+    git_clone_repo(appargs.ibek_templates_url, templates_dir, appargs.ibek_templates_branch)
+    templates_path = os.path.join(templates_dir, "templates")
+
+    # 2. Clone or reuse ibek-support (for global .ibek.support.yaml definitions)
+    ibek_support_dir = os.path.join(deps_dir, "ibek-support")
+    git_clone_repo(appargs.ibek_support_url, ibek_support_dir, appargs.ibek_support_branch)
+
+    # 3. Clone or reuse ibek-support-infn (for INFN-specific .ibek.support.yaml)
+    ibek_support_infn_dir = os.path.join(deps_dir, "ibek-support-infn")
+    git_clone_repo(appargs.ibek_support_infn_url, ibek_support_infn_dir, appargs.ibek_support_infn_branch)
+
+    # 4. Collect .ibek.support.yaml files into a local ibek-defs directory
+    ibek_defs_dir = os.path.join(workdir, "ibek-defs")
+    print(f"* Collecting ibek definitions into {ibek_defs_dir}")
+    collect_ibek_defs(ibek_defs_dir, [
+        os.path.join(ibek_support_dir, "_global"),
+        ibek_support_dir,
+        os.path.join(ibek_support_infn_dir, "_global"),
+        ibek_support_infn_dir,
+        dev_dir,  # the dev IOC's own .ibek.support.yaml files
+    ])
+
+    # 5. Process each IOC
+    config_dir = os.path.join(workdir, "config")
+    os.makedirs(config_dir, exist_ok=True)
+
+    for ioc in iocs:
+        ioc_name = ioc['name']
+        config_file = os.path.join(workdir, f"{ioc_name}-config.yaml")
+
+        # Dump the IOC configuration to a YAML file
+        with open(config_file, 'w') as file:
+            yaml.dump(ioc, file, default_flow_style=False)
+        print(f"* Created configuration file: {config_file}")
+
+        if 'template' in ioc:
+            # Find template.yaml.j2 in ibek-templates
+            template_name = ioc['template'] + ".yaml.j2"
+            template_path = None
+            template_dir = None
+            print(f"* Searching '{template_name}' in {templates_path}")
+
+            for root, dirs, files in os.walk(templates_path):
+                if template_name in files:
+                    template_path = os.path.join(root, template_name)
+                    template_dir = root
+                    break
+
+            if not template_path:
+                print(f"Error: Template '{template_name}' not found in {templates_path}")
+                exit(1)
+
+            # Render template with jnjrender -> produces ioc.yaml (ibek input)
+            dump_exec(config_dir)
+            run_jnjrender(template_dir, config_file, config_dir)
+
+            # Apply global template overrides if available
+            global_template_dir = os.path.join(templates_path, "global")
+            if os.path.isdir(global_template_dir):
+                print("* applying global template overrides")
+                run_jnjrender(global_template_dir, config_file, config_dir)
+                global_yaml_path = os.path.join(config_dir, "global.yaml")
+                if os.path.exists(global_yaml_path):
+                    for yaml_file in glob.glob(os.path.join(config_dir, "*.yaml")):
+                        if yaml_file != global_yaml_path:
+                            with open(yaml_file, 'a') as yf:
+                                yf.write("\n")
+                                with open(global_yaml_path, 'r') as gf:
+                                    yf.write(gf.read())
+                            print(f"* appended global.yaml to {yaml_file}")
+                    os.remove(global_yaml_path)
+
+        # 6. Find the generated ibek YAML (e.g., motor.yaml)
+        ibek_yamls = glob.glob(os.path.join(config_dir, "*.yaml"))
+        ibek_yamls = [f for f in ibek_yamls if not f.endswith("-config.yaml")]
+        if not ibek_yamls:
+            print(f"Error: No ibek YAML generated for {ioc_name}")
+            exit(1)
+
+        ibek_src = ibek_yamls[0]
+        print(f"* Generated ibek YAML: {ibek_src}")
+
+        # 7. Generate runtime with ibek
+        defs_glob = os.path.join(ibek_defs_dir, "*.ibek.support.yaml")
+        defs_files = glob.glob(defs_glob)
+        if not defs_files:
+            print(f"Error: No ibek definition files found in {ibek_defs_dir}")
+            exit(1)
+
+        runtime_dir = os.path.join(workdir, "runtime")
+        os.makedirs(runtime_dir, exist_ok=True)
+
+        ibek_cmd = ["ibek", "runtime", "generate", ibek_src] + defs_files
+        print(f"* Running: ibek runtime generate {ibek_src} ({len(defs_files)} defs)")
+        env = os.environ.copy()
+        env["RUNTIME_DIR"] = runtime_dir
+        env.setdefault("IOC", dev_dir)
+        env.setdefault("SUPPORT", os.path.join(dev_dir, ".."))
+        result = subprocess.run(ibek_cmd, env=env)
+        if result.returncode != 0:
+            print(f"Error: ibek runtime generate failed for {ioc_name}")
+            exit(1)
+
+        # 8. Generate autosave
+        result = subprocess.run(["ibek", "runtime", "generate-autosave"], env=env)
+        if result.returncode != 0:
+            print(f"Warning: ibek runtime generate-autosave failed for {ioc_name}")
+
+        # 9. Launch the IOC
+        st_cmd = os.path.join(runtime_dir, "st.cmd")
+        if not os.path.isfile(st_cmd):
+            print(f"Error: Generated st.cmd not found at {st_cmd}")
+            exit(1)
+
+        ioc_binary = os.path.join(dev_dir, "bin", "linux-x86_64", "ioc")
+        if not os.path.isfile(ioc_binary):
+            # Try to find any binary in bin/linux-x86_64/
+            bin_dir = os.path.join(dev_dir, "bin", "linux-x86_64")
+            if os.path.isdir(bin_dir):
+                bins = [f for f in os.listdir(bin_dir) if os.path.isfile(os.path.join(bin_dir, f)) and os.access(os.path.join(bin_dir, f), os.X_OK)]
+                if bins:
+                    ioc_binary = os.path.join(bin_dir, bins[0])
+                    print(f"* Using IOC binary: {ioc_binary}")
+                else:
+                    print(f"Error: No executable found in {bin_dir}")
+                    exit(1)
+            else:
+                print(f"Error: IOC binary directory not found: {bin_dir}")
+                exit(1)
+        else:
+            print(f"* Using IOC binary: {ioc_binary}")
+
+        print(f"* Starting IOC: {ioc_binary} {st_cmd}")
+        result = subprocess.run([ioc_binary, st_cmd], env=env)
+        if result.returncode != 0:
+            print(f"Warning: IOC {ioc_name} exited with code {result.returncode}")
+
+
 import shutil  # Ensure shutil is imported for checking application availability
 
 def main_run():
@@ -226,6 +414,8 @@ def main_run():
 
     parser.add_argument("--version", action="store_true", help="Show the version and exit")
     parser.add_argument("--native", action="store_true", help="Don't use Docker to run, run inside")
+    parser.add_argument("--dev", action="store_true", help="Development mode: run IOC under development with downloaded ibek-templates/ibek-support")
+    parser.add_argument("--dev-dir", default=".", help="Path to the IOC source under development (e.g., technosoft-asyn)")
     parser.add_argument("--image", default="ghcr.io/infn-epics/infn-epics-ioc-runtime:latest", help="Use Docker image to run")
     parser.add_argument("--workdir", default=".", help="Working directory")
     parser.add_argument("--platform", default="linux/amd64", help="Docker image platform")
@@ -236,6 +426,12 @@ def main_run():
     parser.add_argument("--dockerargs", default="", help="Additional Docker arguments for running the IOC")
     parser.add_argument("--caport", default="5064", help="Base port to use for CA")
     parser.add_argument("--pvaport", default="5075", help="Base port to use for PVA")
+    parser.add_argument("--ibek-templates-url", default=DEFAULT_IBEK_TEMPLATES_URL, help="Git URL for ibek-templates repository")
+    parser.add_argument("--ibek-templates-branch", default="main", help="Branch for ibek-templates repository")
+    parser.add_argument("--ibek-support-url", default=DEFAULT_IBEK_SUPPORT_URL, help="Git URL for ibek-support repository")
+    parser.add_argument("--ibek-support-branch", default="main", help="Branch for ibek-support repository")
+    parser.add_argument("--ibek-support-infn-url", default=DEFAULT_IBEK_SUPPORT_INFN_URL, help="Git URL for ibek-support-infn repository")
+    parser.add_argument("--ibek-support-infn-branch", default="main", help="Branch for ibek-support-infn repository")
 
     args = parser.parse_args()
 
@@ -323,8 +519,24 @@ def main_run():
     if not os.path.exists(args.workdir):
         os.makedirs(args.workdir)
         print(f"* Created working directory: {args.workdir}")
-    # Check for native mode requirements
-    if args.native:
+
+    # Development mode: run IOC under development with downloaded dependencies
+    if args.dev:
+        dev_dir = os.path.abspath(args.dev_dir)
+        if not os.path.isdir(dev_dir):
+            print(f"Error: Development IOC directory '{dev_dir}' does not exist.")
+            exit(1)
+
+        required_apps = ["ibek", "jnjrender"]
+        for app in required_apps:
+            if not shutil.which(app):
+                print(f"Error: Required application '{app}' is not available in PATH.")
+                print("  Dev mode requires ibek and jnjrender installed in the environment.")
+                exit(1)
+
+        print(f"* Development mode: IOC source at {dev_dir}")
+        iocrun_dev(iocrunlist, args)
+    elif args.native:
         required_directories = ["/epics/epics-base/", "/epics/ibek-defs/", f"{args.templatedir}"]
         required_apps = ["ibek", "jnjrender","/epics/ioc/start.sh"]
 
