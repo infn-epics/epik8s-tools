@@ -1,6 +1,7 @@
 import yaml
 import os
 import ast
+import re
 import shutil
 import glob
 import jinja2
@@ -246,7 +247,7 @@ def collect_ibek_defs(ibek_defs_dir, sources):
                 if f.endswith('.ibek.support.yaml'):
                     src_path = os.path.join(root, f)
                     dst_path = os.path.join(ibek_defs_dir, f)
-                    if os.path.exists(dst_path):
+                    if os.path.exists(dst_path) or os.path.islink(dst_path):
                         os.remove(dst_path)
                     os.symlink(os.path.abspath(src_path), dst_path)
                     print(f"  - linked {f} from {root}")
@@ -254,11 +255,251 @@ def collect_ibek_defs(ibek_defs_dir, sources):
     print(f"* Collected {count} ibek definition files in {ibek_defs_dir}")
 
 
+def _inspect_ioc_project(dev_dir):
+    """Validate that dev_dir is a canonical EPICS IOC project and extract key metadata.
+
+    A canonical EPICS IOC project must have:
+      - configure/CONFIG or configure/RELEASE
+      - at least one *App/ subdirectory
+      - dbd/ directory with built output
+      - bin/<arch>/ directory with a built binary
+
+    Discovery is attempted in three passes (each winning over the previous):
+      1. Makefile parsing — most authoritative, works without iocBoot
+      2. iocBoot/*/st.cmd parsing
+      3. Filesystem inference (dbd/*.dbd, bin/<arch>/*)
+
+    Returns a dict with:
+      'valid'     : bool — True if the directory looks like a built IOC
+      'errors'    : list[str] — human-readable reasons it is not valid (if any)
+      'prod_ioc'  : str|None — binary name (e.g. 'technosoft')
+      'dbd_name'  : str|None — top-level DBD filename (e.g. 'technosoft.dbd')
+      'dbd_path'  : str|None — absolute path to the DBD file
+      'registrar' : str|None — registerRecordDeviceDriver function name
+      'binary'    : str|None — absolute path to the IOC executable
+    """
+    result = {
+        'valid': False, 'errors': [],
+        'prod_ioc': None, 'dbd_name': None, 'dbd_path': None,
+        'registrar': None, 'binary': None,
+    }
+
+    # --- Structural validation -------------------------------------------------
+    if not os.path.isdir(dev_dir):
+        result['errors'].append(f"Directory does not exist: {dev_dir}")
+        return result
+
+    has_configure = (os.path.isfile(os.path.join(dev_dir, "configure", "CONFIG")) or
+                     os.path.isfile(os.path.join(dev_dir, "configure", "RELEASE")))
+    if not has_configure:
+        result['errors'].append("Missing configure/CONFIG or configure/RELEASE")
+
+    app_dirs = [d for d in os.listdir(dev_dir)
+                if d.endswith("App") and os.path.isdir(os.path.join(dev_dir, d))]
+    if not app_dirs:
+        result['errors'].append("No *App/ subdirectory found")
+
+    dbd_dir = os.path.join(dev_dir, "dbd")
+    if not os.path.isdir(dbd_dir):
+        result['errors'].append("Missing dbd/ directory (project may not be built yet)")
+
+    bin_base = os.path.join(dev_dir, "bin")
+    arch_dirs = []
+    if os.path.isdir(bin_base):
+        arch_dirs = [os.path.join(bin_base, a) for a in os.listdir(bin_base)
+                     if os.path.isdir(os.path.join(bin_base, a))]
+    if not arch_dirs:
+        result['errors'].append("Missing bin/<arch>/ directory (project may not be built yet)")
+
+    # --- Pass 1: Makefile parsing ---------------------------------------------
+    # Walk *App/src/Makefile (and *App/Makefile) looking for:
+    #   PROD_IOC = <name>
+    #   DBD += <name>.dbd
+    #   <name>_SRCS += <name>_registerRecordDeviceDriver.cpp
+    for app_dir in app_dirs:
+        for makefile_rel in ("src/Makefile", "Makefile"):
+            makefile = os.path.join(dev_dir, app_dir, makefile_rel)
+            if not os.path.isfile(makefile):
+                continue
+            try:
+                with open(makefile) as f:
+                    content = f.read()
+            except OSError:
+                continue
+
+            if result['prod_ioc'] is None:
+                m = re.search(r'^PROD_IOC\s*[+:?]?=\s*(\S+)', content, re.MULTILINE)
+                if m:
+                    result['prod_ioc'] = m.group(1)
+
+            if result['dbd_name'] is None:
+                # Top-level DBD: line like  DBD += technosoft.dbd
+                m = re.search(r'^DBD\s*\+=\s*(\S+\.dbd)', content, re.MULTILINE)
+                if m:
+                    result['dbd_name'] = m.group(1)
+
+            if result['registrar'] is None:
+                # Source file name encodes the function: technosoft_registerRecordDeviceDriver.cpp
+                m = re.search(r'(\w+_registerRecordDeviceDriver)\.cpp', content)
+                if m:
+                    result['registrar'] = m.group(1)
+
+    # --- Pass 2: iocBoot/*/st.cmd parsing ------------------------------------
+    iocboot_dir = os.path.join(dev_dir, "iocBoot")
+    if os.path.isdir(iocboot_dir):
+        for root, _dirs, files in os.walk(iocboot_dir):
+            for fname in files:
+                if fname != "st.cmd":
+                    continue
+                try:
+                    with open(os.path.join(root, fname)) as f:
+                        for line in f:
+                            stripped = line.strip()
+                            if stripped.startswith('#'):
+                                continue
+                            if result['dbd_name'] is None:
+                                m = re.search(r'dbLoadDatabase.*?([^\s/]+\.dbd)', stripped)
+                                if m:
+                                    result['dbd_name'] = m.group(1)
+                            if result['registrar'] is None:
+                                m = re.match(r'(\w+_registerRecordDeviceDriver)\b', stripped)
+                                if m:
+                                    result['registrar'] = m.group(1)
+                            if result['prod_ioc'] is None:
+                                # shebang: #!../../bin/linux-x86_64/technosoft
+                                m = re.match(r'#!.*/bin/[^/]+/(\S+)', line)
+                                if m:
+                                    result['prod_ioc'] = m.group(1)
+                except OSError:
+                    pass
+
+    # --- Pass 3: filesystem inference ----------------------------------------
+    if result['registrar'] is None and os.path.isdir(dbd_dir):
+        for fname in sorted(os.listdir(dbd_dir)):
+            if not fname.endswith(".dbd") or fname == "ioc.dbd":
+                continue
+            try:
+                with open(os.path.join(dbd_dir, fname)) as f:
+                    for line in f:
+                        m = re.search(r'function\((\w+_registerRecordDeviceDriver)\)', line)
+                        if m:
+                            result['registrar'] = m.group(1)
+                            break
+            except OSError:
+                pass
+            if result['registrar']:
+                break
+
+    if result['dbd_name'] is None and os.path.isdir(dbd_dir):
+        # Pick the first non-dev*.dbd — assume it's the top-level IOC dbd
+        for fname in sorted(os.listdir(dbd_dir)):
+            if fname.endswith(".dbd") and not fname.startswith("dev") and fname != "ioc.dbd":
+                result['dbd_name'] = fname
+                break
+
+    if result['prod_ioc'] is None and result['dbd_name']:
+        # Guess binary name from dbd name (strip .dbd)
+        result['prod_ioc'] = result['dbd_name'][:-4]
+
+    # --- Resolve paths --------------------------------------------------------
+    if result['dbd_name'] and os.path.isdir(dbd_dir):
+        candidate = os.path.join(dbd_dir, result['dbd_name'])
+        if os.path.isfile(candidate):
+            result['dbd_path'] = candidate
+
+    if result['prod_ioc'] and arch_dirs:
+        for arch_dir in arch_dirs:
+            candidate = os.path.join(arch_dir, result['prod_ioc'])
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                result['binary'] = candidate
+                break
+        if result['binary'] is None:
+            # Fall back: any executable in any arch dir
+            for arch_dir in arch_dirs:
+                try:
+                    for exe in os.listdir(arch_dir):
+                        full = os.path.join(arch_dir, exe)
+                        if os.path.isfile(full) and os.access(full, os.X_OK):
+                            result['binary'] = full
+                            break
+                except OSError:
+                    pass
+                if result['binary']:
+                    break
+
+    # --- Final validity -------------------------------------------------------
+    result['valid'] = (not result['errors'] and
+                       result['dbd_path'] is not None and
+                       result['binary'] is not None)
+    return result
+
+
+def _find_ioc_dbd(dev_dir):
+    """Thin wrapper kept for backwards compat — delegates to _inspect_ioc_project."""
+    info = _inspect_ioc_project(dev_dir)
+    return info.get('dbd_path')
+
+
+def _find_register_record_device_driver(dev_dir):
+    """Thin wrapper kept for backwards compat — delegates to _inspect_ioc_project."""
+    info = _inspect_ioc_project(dev_dir)
+    return info.get('registrar')
+
+
+def filter_defs_by_ibek_yaml(ibek_yaml_path, defs_files):
+    """Return only the defs files whose module is referenced in the ibek YAML.
+
+    Entity types in an ibek YAML follow the pattern '<module>.<EntityName>'.
+    We extract the module prefix from every 'type:' entry in the entities list,
+    then keep only the def files whose top-level 'module:' field appears in
+    that set.  The special 'epics' module (built-ins) is always included.
+    """
+    try:
+        with open(ibek_yaml_path) as f:
+            ibek_data = yaml.safe_load(f)
+    except Exception as e:
+        print(f"Warning: could not parse {ibek_yaml_path} for module filtering: {e}")
+        return defs_files
+
+    used_modules = set()
+    for entity in ibek_data.get("entities", []):
+        type_str = entity.get("type", "")
+        if "." in type_str:
+            used_modules.add(type_str.split(".", 1)[0])
+
+    # Always include the epics built-in module
+    used_modules.add("epics")
+
+    filtered = []
+    for def_file in defs_files:
+        try:
+            with open(def_file) as f:
+                def_data = yaml.safe_load(f)
+            module = (def_data or {}).get("module", "")
+            if module in used_modules:
+                filtered.append(def_file)
+        except Exception:
+            # If a def file can't be parsed keep it out - don't crash the run
+            pass
+
+    print(f"* Filtered defs to {len(filtered)} files matching modules: {sorted(used_modules)}")
+    return filtered
+
+
 def iocrun_dev(iocs, appargs):
     """Run IOCs in development mode: download ibek-templates and ibek-support,
     render templates with jnjrender, generate runtime with ibek, and launch."""
     dev_dir = os.path.abspath(appargs.dev_dir)
     workdir = os.path.abspath(appargs.workdir)
+
+    # Validate that dev_dir is a built canonical EPICS IOC project before anything else
+    ioc_info = _inspect_ioc_project(dev_dir)
+    if ioc_info['errors']:
+        print("Error: dev_dir does not look like a valid built EPICS IOC project:")
+        for e in ioc_info['errors']:
+            print(f"  - {e}")
+        print(f"  Path inspected: {dev_dir}")
+        exit(1)
     deps_dir = os.path.join(workdir, ".epik8s-deps")
     os.makedirs(deps_dir, exist_ok=True)
 
@@ -353,14 +594,21 @@ def iocrun_dev(iocs, appargs):
             print(f"Error: No ibek definition files found in {ibek_defs_dir}")
             exit(1)
 
+        # Filter defs to only those whose module is actually used in the ibek YAML
+        defs_files = filter_defs_by_ibek_yaml(ibek_src, defs_files)
+        if not defs_files:
+            print(f"Error: No matching ibek definition files found for {ibek_src}")
+            exit(1)
+
         runtime_dir = os.path.join(workdir, "runtime")
         os.makedirs(runtime_dir, exist_ok=True)
 
         ibek_cmd = ["ibek", "runtime", "generate", ibek_src] + defs_files
         print(f"* Running: ibek runtime generate {ibek_src} ({len(defs_files)} defs)")
         env = os.environ.copy()
-        env["RUNTIME_DIR"] = runtime_dir
-        env.setdefault("IOC", dev_dir)
+        env["EPICS_ROOT"] = workdir     # ibek writes output files to $EPICS_ROOT/runtime/
+        env["IOC"] = dev_dir            # ibek st.cmd.jinja: cd "$IOC"
+        env["RUNTIME_DIR"] = runtime_dir  # ibek st.cmd.jinja: dbLoadRecords $RUNTIME_DIR/ioc.db
         env.setdefault("SUPPORT", os.path.join(dev_dir, ".."))
         result = subprocess.run(ibek_cmd, env=env)
         if result.returncode != 0:
@@ -377,6 +625,41 @@ def iocrun_dev(iocs, appargs):
         if not os.path.isfile(st_cmd):
             print(f"Error: Generated st.cmd not found at {st_cmd}")
             exit(1)
+
+        # Ensure dbd/ioc.dbd exists in dev_dir (ibek generates: cd dev_dir; dbLoadDatabase dbd/ioc.dbd)
+        ioc_dbd = os.path.join(dev_dir, "dbd", "ioc.dbd")
+        if not os.path.exists(ioc_dbd):
+            real_dbd = ioc_info.get('dbd_path')
+            if real_dbd:
+                if os.path.islink(ioc_dbd):
+                    os.remove(ioc_dbd)
+                os.symlink(real_dbd, ioc_dbd)
+                print(f"* Linked dbd/ioc.dbd -> {os.path.relpath(real_dbd, os.path.join(dev_dir, 'dbd'))}")
+            else:
+                print(f"Warning: could not find a DBD file to link as dbd/ioc.dbd in {dev_dir}")
+
+        # Patch the generated st.cmd: ibek uses the generic 'ioc_registerRecordDeviceDriver'
+        # but each IOC has its own <appname>_registerRecordDeviceDriver function.
+        real_rrd = ioc_info.get('registrar')
+        if real_rrd and real_rrd != "ioc_registerRecordDeviceDriver":
+            with open(st_cmd) as f:
+                st_cmd_content = f.read()
+            patched = st_cmd_content.replace(
+                "ioc_registerRecordDeviceDriver", real_rrd
+            )
+            if patched != st_cmd_content:
+                with open(st_cmd, "w") as f:
+                    f.write(patched)
+                print(f"* Patched st.cmd: ioc_registerRecordDeviceDriver -> {real_rrd}")
+
+        # Scan st.cmd for $(VAR)/ path macros not yet in the environment.
+        # In dev mode the IOC source IS the support module, so point them to dev_dir.
+        with open(st_cmd) as f:
+            st_cmd_content = f.read()
+        for macro in set(re.findall(r'\$\(([A-Z_][A-Z0-9_]*)\)/', st_cmd_content)):
+            if macro not in env:
+                env[macro] = dev_dir
+                print(f"* Dev mode: setting {macro}={dev_dir}")
 
         ioc_binary = os.path.join(dev_dir, "bin", "linux-x86_64", "ioc")
         if not os.path.isfile(ioc_binary):
