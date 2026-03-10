@@ -77,7 +77,7 @@ def build_standard_group(devgroup, zones, width, height):
 
     zone_list = ['ALL'] + sorted(zones - {'ALL'})
     nav = widget.NavigationTabs(f"zone-{devgroup}", 0, 0, width, height)
-    nav.direction(0)
+    nav.tab_direction_horizontal()
     for zone in zone_list:
         nav.tab(zone, bob_path, "", {"ZONE": zone})
     grp.add_widget(nav)
@@ -87,7 +87,7 @@ def build_standard_group(devgroup, zones, width, height):
 def build_device_navtabs(devgroup, iocs, width, height, epik8s_opi_path):
     """Build NavigationTabs with per-device OPI for non-standard devgroups."""
     nav = widget.NavigationTabs(f"nav-{devgroup}", 0, 0, width, height)
-    nav.direction(0)
+    nav.tab_direction_horizontal()
     count = 0
 
     for ioc in iocs:
