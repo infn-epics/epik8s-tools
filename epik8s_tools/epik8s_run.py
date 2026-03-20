@@ -340,9 +340,15 @@ def _inspect_ioc_project(dev_dir):
 
             if result['registrar'] is None:
                 # Source file name encodes the function: technosoft_registerRecordDeviceDriver.cpp
-                m = re.search(r'(\w+_registerRecordDeviceDriver)\.cpp', content)
-                if m:
-                    result['registrar'] = m.group(1)
+                # Skip comment lines to avoid matching e.g. "# streamdevice_registerRecordDeviceDriver.cpp"
+                for line in content.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith('#'):
+                        continue
+                    m = re.search(r'(\w+_registerRecordDeviceDriver)\.cpp', stripped)
+                    if m:
+                        result['registrar'] = m.group(1)
+                        break
 
     # --- Pass 2: iocBoot/*/st.cmd parsing ------------------------------------
     iocboot_dir = os.path.join(dev_dir, "iocBoot")
@@ -615,6 +621,19 @@ def iocrun_dev(iocs, appargs):
             print(f"Error: ibek runtime generate failed for {ioc_name}")
             exit(1)
 
+        # 7b. Expand ioc.subst -> ioc.db using msi
+        ioc_subst = os.path.join(runtime_dir, "ioc.subst")
+        ioc_db = os.path.join(runtime_dir, "ioc.db")
+        if os.path.isfile(ioc_subst):
+            db_dir = os.path.join(dev_dir, "db")
+            msi_bin = shutil.which("msi") or "/epics/epics-base/bin/linux-x86_64/msi"
+            msi_cmd = [msi_bin, f"-I{db_dir}", "-S", ioc_subst]
+            print(f"* Expanding ioc.subst -> ioc.db")
+            with open(ioc_db, "w") as out:
+                result = subprocess.run(msi_cmd, stdout=out, env=env)
+            if result.returncode != 0:
+                print(f"Warning: msi expansion failed for {ioc_name}")
+
         # 8. Generate autosave
         result = subprocess.run(["ibek", "runtime", "generate-autosave"], env=env)
         if result.returncode != 0:
@@ -652,10 +671,22 @@ def iocrun_dev(iocs, appargs):
                     f.write(patched)
                 print(f"* Patched st.cmd: ioc_registerRecordDeviceDriver -> {real_rrd}")
 
-        # Scan st.cmd for $(VAR)/ path macros not yet in the environment.
-        # In dev mode the IOC source IS the support module, so point them to dev_dir.
+        # Patch /nfs/... absolute paths in st.cmd to local runtime dir for dev mode
         with open(st_cmd) as f:
             st_cmd_content = f.read()
+        nfs_patched = re.sub(
+            r'/nfs/[^\s>]+',
+            lambda m: os.path.join(runtime_dir, os.path.basename(m.group(0))),
+            st_cmd_content
+        )
+        if nfs_patched != st_cmd_content:
+            with open(st_cmd, "w") as f:
+                f.write(nfs_patched)
+            st_cmd_content = nfs_patched
+            print(f"* Patched st.cmd: /nfs/... paths redirected to {runtime_dir}")
+
+        # Scan st.cmd for $(VAR)/ path macros not yet in the environment.
+        # In dev mode the IOC source IS the support module, so point them to dev_dir.
         for macro in set(re.findall(r'\$\(([A-Z_][A-Z0-9_]*)\)/', st_cmd_content)):
             if macro not in env:
                 env[macro] = dev_dir
