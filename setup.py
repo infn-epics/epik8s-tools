@@ -31,7 +31,7 @@ setup(
     description="A set of tools for generating Kubernetes Helm charts for EPICS-based systems.",
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
-    url="https://github.com/yourusername/epik8s-tools",
+    url="https://github.com/infn-epics/epik8s-tools",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

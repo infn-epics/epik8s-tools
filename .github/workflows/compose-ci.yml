@@ -1,0 +1,61 @@
+name: Compose CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  compose-generate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Generate compose from beamline test
+        run: |
+          python -m epik8s_tools.epik8s_compose \
+            --config tests/beamline.yaml \
+            --output artifacts/beamline-compose
+
+          test -f artifacts/beamline-compose/docker-compose.yaml
+          test -f artifacts/beamline-compose/epics.env
+          test -f artifacts/beamline-compose/epics-channel.env
+
+      - name: Generate compose from large config subset
+        run: |
+          python -m epik8s_tools.epik8s_compose \
+            --config tests/sparc_values.yaml \
+            --services gateway pvagateway archiver ac1bpm01 \
+            --output artifacts/sparc-compose-mini
+
+          test -f artifacts/sparc-compose-mini/docker-compose.yaml
+          test -f artifacts/sparc-compose-mini/epics.env
+
+      - name: Validate generated compose content
+        run: |
+          grep -q "services:" artifacts/beamline-compose/docker-compose.yaml
+          grep -q "ac1bpm01:" artifacts/sparc-compose-mini/docker-compose.yaml
+          grep -q "gateway:" artifacts/sparc-compose-mini/docker-compose.yaml
+
+      - name: Upload compose artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-artifacts-py${{ matrix.python-version }}
+          path: artifacts/

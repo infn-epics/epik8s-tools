@@ -12,6 +12,7 @@ A simple guide to bring up a k8s single node cluster (extensible) is [*microk8s*
 - **Support for Ingress and Load Balancers**: Configurable settings for CA and PVA gateway IPs and ingress classes.
 - **Customizable Options**: Extensive CLI options to adapt configurations to specific project needs.
 - **IOC Execution**: Run IOC configurations directly using the `epik8s-run` tool.
+- **Docker Compose Generation**: Build ready-to-run single-node Docker Compose deployments with `epik8s-compose`.
 
 ## Installation
 
@@ -109,3 +110,79 @@ epik8s-run beamline-config.yaml ioc1 ioc2 --workdir ./workdir --native
 - **`--image`**: Specify the Docker image to use (default: `ghcr.io/infn-epics/infn-epics-ioc-runtime:latest`).
 
 This command will validate the IOC configurations, generate necessary files, and start the IOCs either natively or in a Docker container.
+
+---
+
+### Generating a Single-Node Docker Compose with `epik8s-compose`
+
+The `epik8s-compose` tool converts a beamline YAML configuration into a ready-to-use directory for Docker Compose.
+
+#### Example Command
+
+```bash
+epik8s-compose --config tests/beamline.yaml --output test-compose
+```
+
+Generated output includes:
+
+- `docker-compose.yaml`
+- `epics.env` (shared EPICS environment)
+- `epics-channel.env` (host helper for CA/PVA access)
+- per-IOC directories in `iocs/<iocname>/`
+
+#### Start the Beamline
+
+```bash
+cd test-compose
+docker compose up
+```
+
+#### Useful Options
+
+- `--caport`: starting CA port for gateway mappings (default `5064`)
+- `--pvaport`: starting PVA port for gateway mappings (default `5075`)
+- `--htmlport`: starting HTTP port for ingress-mapped services (default `8090`)
+- `--services`: include only selected services/IOCs
+- `--exclude`: exclude selected services/IOCs
+- `--platform`: target container platform (default `linux/amd64`)
+
+---
+
+## GitHub Actions
+
+This repository includes GitHub workflows for CI, tag creation, and PyPI publishing.
+
+### Compose CI
+
+Workflow: `.github/workflows/compose-ci.yml`
+
+- Runs on push and pull request to `main`
+- Tests `epik8s-compose` generation on sample configurations
+- Uploads generated compose artifacts for inspection
+
+### Create Release Tag
+
+Workflow: `.github/workflows/create-release-tag.yml`
+
+- Manual trigger (`workflow_dispatch`)
+- Input: semantic version without `v` (for example `0.10.4`)
+- Creates and pushes tag `v<version>`
+- Creates a GitHub Release with generated notes
+
+### Publish to PyPI
+
+Workflow: `.github/workflows/publish-pypi.yml`
+
+- Triggered automatically on tag push matching `v*`
+- Builds the package and uploads to PyPI via `twine`
+
+Required GitHub secret:
+
+- `PYPI_API_TOKEN`: PyPI API token with upload permissions for `epik8s-tools`
+
+### Recommended Release Flow
+
+1. Update package version in `epik8s_tools/__init__.py`.
+2. Merge changes to `main`.
+3. Run `Create Release Tag` workflow and provide the new version.
+4. `Publish PyPI` workflow runs automatically on the pushed tag.

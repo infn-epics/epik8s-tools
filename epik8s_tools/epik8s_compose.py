@@ -1,11 +1,60 @@
-import os,sys
+import os
+import sys
 import argparse
- 
 import shutil
+import copy
+
 from jinja2 import Template
 from epik8s_tools import __version__
 import yaml
-from .epik8s_common import dump_exec, run_jnjrender,app_dir,run_remote,apply_ioc_defaults
+from .epik8s_common import apply_ioc_defaults
+
+# Default images for well-known services
+DEFAULT_SERVICE_IMAGES = {
+    "gateway": "baltig.infn.it:4567/epics-containers/docker-ca-gateway",
+    "pvagateway": "baltig.infn.it:4567/epics-containers/docker-pva-gateway",
+    "archiver": "ghcr.io/slacmshankar/epicsarchiverap",
+    "pvws": "ghcr.io/infn-epics/phoebus-pvws",
+    "dbwr": "ghcr.io/infn-epics/phoebus-dbwr",
+    "notebook": "ghcr.io/infn-epics/jupyter-control-notebook",
+    "alarmserver": "ghcr.io/infn-epics/phoebus-alarm-server",
+    "alarmlogger": "ghcr.io/infn-epics/phoebus-alarm-logger",
+    "saveandrestore": "ghcr.io/infn-epics/phoebus-save-and-restore",
+    "channelfinder": "ghcr.io/infn-epics/phoebus-channelfinder",
+    "console": "ghcr.io/infn-epics/phoebus-olog",
+    "webalarm": "ghcr.io/infn-epics/phoebus-alarm-screen",
+    "scanserver": "ghcr.io/infn-epics/phoebus-scan-server",
+}
+
+# Well-known internal ports for ingress-enabled services
+SERVICE_INTERNAL_PORTS = {
+    "archiver": 17665,
+    "pvws": 8080,
+    "dbwr": 8080,
+    "notebook": 8888,
+    "console": 8080,
+    "webalarm": 8080,
+    "webolog": 8080,
+    "saveandrestore": 8080,
+    "channelfinder": 8080,
+    "alarmserver": 8080,
+    "scanserver": 8080,
+}
+
+DEFAULT_IOC_IMAGE = "ghcr.io/infn-epics/infn-epics-ioc-runtime"
+
+
+def parse_config(file_path):
+    with open(file_path, 'r') as file:
+        return yaml.safe_load(file)
+
+
+def write_file(directory, content, fname):
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, fname)
+    with open(path, 'w') as f:
+        f.write(content)
+    return path
 
 
 def copy_directory(src, dest):
@@ -13,329 +62,293 @@ def copy_directory(src, dest):
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
 
-def parse_config(file_path):
-    with open(file_path, 'r') as file:
-        return yaml.safe_load(file)
-
-
-def determine_mount_path(host_dir, what, service_name, output_dir):
-    # If host_dir is relative, concatenate it with output_dir
-    check_dir = os.path.join(output_dir, host_dir)
-    isrelative = False
-    if not os.path.isabs(host_dir):
-        check_dir = os.path.join(check_dir, what, service_name)
-        isrelative = True
-
-    
-    fallback_dir = os.path.join(host_dir, what, service_name)
-    if os.path.isdir(check_dir):
-        return fallback_dir
-    else:
-        if isrelative:
-            print(f"%% [{service_name}] path {check_dir} does not exist, check iocdir or devtype in YAML configuration")
-        else:
-            print(f"%% [{service_name}] path {fallback_dir} does not exist, check iocdir or devtype in YAML configuration")
-    return ""
-
-def render_config(template_str, service_config):
-    template = Template(template_str)
-    return template.render(service_config)
 
 def render_j2_files(directory, config):
+    """Render all .j2 templates in *directory* using *config* as Jinja2 context."""
     for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith(".j2"):
-                file_path = os.path.join(root, file)
+        for fname in files:
+            if fname.endswith(".j2"):
+                file_path = os.path.join(root, fname)
                 with open(file_path, 'r') as f:
-                    template_str = f.read()
-                rendered_content = render_config(template_str, config)
-                output_file_path = file_path[:-3]  # Remove the .j2 extension
-                with open(output_file_path, 'w') as f:
-                    f.write(rendered_content)
-#                os.remove(file_path)  # Optionally remove the .j2 file after rendering
+                    rendered = Template(f.read()).render(config)
+                with open(file_path[:-3], 'w') as f:
+                    f.write(rendered)
 
-def write_config_file(directory, content, fname):
-    os.makedirs(directory, exist_ok=True)
-    config_path = os.path.join(directory, fname)
-    with open(config_path, 'w') as file:
-        file.write(content)
-        os.chmod(config_path, 0o755)
 
-def generate_docker_compose_and_configs(output_dir, args, caport, pvaport, ingressport):
-    exclude_services = args.exclude if args.exclude else []
-    selected_services = args.services if args.services else None
+def _resolve_image(service_name, service_val):
+    """Return (image_string, needs_skip) for a service entry."""
+    if 'image' in service_val:
+        img = service_val['image']
+        if isinstance(img, dict):
+            repo = img.get('repository')
+            tag = img.get('tag')
+            if not repo:
+                return None, True
+            return f"{repo}:{tag}" if tag else repo, False
+        return str(img), False
+    default = DEFAULT_SERVICE_IMAGES.get(service_name)
+    if default:
+        return default, False
+    return None, True
 
-    config_yaml = os.path.join(output_dir, "config.yaml")
-    host_dir = "./config"
-    config = parse_config(config_yaml)
-    apply_ioc_defaults(config)
 
-    docker_compose = {'services': {}}
+# ---------------------------------------------------------------------------
+# Core generation
+# ---------------------------------------------------------------------------
+
+def generate_docker_compose(config, args, caport, pvaport, ingressport):
+    """Build a docker-compose dict and create per-service/IOC config dirs under *output_dir*.
+
+    The runtime image already contains ibek-templates, ibek-support, jnjrender,
+    and the IOC start.sh.  We only need to provide each IOC's config.yaml and
+    let the container's `epik8s-run … --native` do the rendering at startup.
+    """
+    output_dir = args.output_dir
+    exclude_services = args.exclude or []
+    selected_services = args.services or None
+    host_dir = args.host_dir  # may be None
+    platform = args.platform
+
     epics_config = config.get('epicsConfiguration', {})
-    env_content = None
-    env_host_content = None
-    epics_ca_addr_list = ""
-    epics_pva_addr_list = ""
-    cadepend_list = []
-    pvadepend_list = []
+    docker_compose = {'services': {}}
 
-    # Generate env file
+    # ---- Collect IOC names for the env / address lists ----
+    epics_ca_addr_list = []
+    epics_pva_addr_list = []
     for ioc in epics_config.get('iocs', []):
-        if selected_services and ioc['name'] not in selected_services:
+        name = ioc['name']
+        if selected_services and name not in selected_services:
             continue
-        if exclude_services and ioc['name'] in exclude_services:
-            print(f"%% ioc {ioc['name']} excluded")
+        if name in exclude_services:
             continue
-        epics_ca_addr_list += f"{ioc['name']} "
-        cadepend_list.append(ioc['name'])
-        if 'pva' in ioc:
-            epics_pva_addr_list += f"{ioc['name']} "
-            pvadepend_list.append(ioc['name'])
-    if epics_ca_addr_list:
-        env_content = f"EPICS_CA_ADDR_LIST=\"{epics_ca_addr_list.strip()}\"\nEPICS_PVA_NAME_SERVERS=\"{epics_pva_addr_list.strip()}\"\nEPICS_PVA_ADDR_LIST=\"{epics_pva_addr_list.strip()}\""
+        epics_ca_addr_list.append(name)
+        if ioc.get('pva'):
+            epics_pva_addr_list.append(name)
 
-    # Process services
+    # Env file shared by all containers (IOC-to-IOC address discovery)
+    env_content = None
+    if epics_ca_addr_list:
+        env_content = (
+            f'EPICS_CA_ADDR_LIST="{" ".join(epics_ca_addr_list)}"\n'
+            f'EPICS_PVA_NAME_SERVERS="{" ".join(epics_pva_addr_list)}"\n'
+            f'EPICS_PVA_ADDR_LIST="{" ".join(epics_pva_addr_list)}"\n'
+        )
+
+    # Host-side env helper (for caget/pvget from the host)
+    env_host_content = ""
+
+    # ---- Process services (gateway, archiver, pvws, …) ----
     for service, service_val in epics_config.get('services', {}).items():
-        image = None
-        tag = None
         if selected_services and service not in selected_services:
             continue
-        if exclude_services and service in exclude_services:
+        if service in exclude_services:
             print(f"%% service {service} excluded")
             continue
 
-        if 'image' not in service_val:
-            if service == "gateway":
-                image = "baltig.infn.it:4567/epics-containers/docker-ca-gateway"
-            if service == "pvagateway":
-                image = "baltig.infn.it:4567/epics-containers/docker-pva-gateway"
-        else:
-            image = service_val['image'].get('repository', service_val['image'])
-            if 'tag' in service_val['image']:
-                tag = service_val['image'].get('tag', 'latest')
-
-        if not image:
-            print(f"%% service {service} skipped no image")
+        image, skip = _resolve_image(service, service_val)
+        if skip:
+            print(f"%% service {service} skipped (no image)")
             continue
-        if tag:
-            docker_compose['services'][service] = {'image': f"{image}:{tag}"}
-        else:
-            docker_compose['services'][service] = {'image': f"{image}"}
 
+        svc = {'image': image}
+        if platform:
+            svc['platform'] = platform
+
+        # --- Loadbalancer ports (gateway / pvagateway) ---
         if 'loadbalancer' in service_val:
             if service == "gateway":
-                docker_compose['services'][service]['ports'] = [f"{caport}:5064/tcp", f"{caport}:5064/udp", f"{caport+1}:5065/tcp", f"{caport+1}:5065/udp"]
-                env_host_content = f"export EPICS_CA_ADDR_LIST=localhost:{caport}\n"
+                svc['ports'] = [
+                    f"{caport}:5064/tcp", f"{caport}:5064/udp",
+                    f"{caport+1}:5065/tcp", f"{caport+1}:5065/udp",
+                ]
+                svc['depends_on'] = {n: {"condition": "service_started"} for n in epics_ca_addr_list}
+                env_host_content += f"export EPICS_CA_ADDR_LIST=localhost:{caport}\n"
                 caport += 2
-                docker_compose['services'][service]['depends_on'] = cadepend_list
-
             if service == "pvagateway":
-                docker_compose['services'][service]['ports'] = [f"{pvaport}:5075/tcp", f"{pvaport+1}:5076/udp"]
-                if env_host_content:
-                    env_host_content += f"\nexport EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
-                else:
-                    env_host_content = f"\nexport EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
+                svc['ports'] = [
+                    f"{pvaport}:5075/tcp", f"{pvaport+1}:5076/udp",
+                ]
+                svc['depends_on'] = {n: {"condition": "service_started"} for n in epics_pva_addr_list}
+                env_host_content += f"export EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
                 pvaport += 2
-                docker_compose['services'][service]['depends_on'] = pvadepend_list
 
-        if 'enable_ingress' in service_val and service_val['enable_ingress']:
-            if service == "archiver":
-                docker_compose['services'][service]['ports'] = [f"{ingressport}:17665"]
-                ingressport += 1
+        # --- Ingress ports (http services) ---
+        if service_val.get('enable_ingress'):
+            internal = SERVICE_INTERNAL_PORTS.get(service, 8080)
+            svc.setdefault('ports', []).append(f"{ingressport}:{internal}")
+            print(f"  ingress {service} -> localhost:{ingressport}")
+            ingressport += 1
 
+        # --- Environment ---
         if env_content:
-            docker_compose['services'][service]['env_file'] = ["__docker__.env"]
-        mount_path = determine_mount_path(host_dir, 'services', service, output_dir)
-        if mount_path:
-            copy_directory(f"{output_dir}/{mount_path}", f"{output_dir}/__docker__/{service}")
-            config_content=yaml.dump(service_val, default_flow_style=False)
-            write_config_file(f"{output_dir}/__docker__/{service}/init", config_content, "init.yaml")
-            render_j2_files(f"{output_dir}/__docker__/{service}",service_val) 
-            docker_compose['services'][service]['volumes'] = [f"./__docker__/{service}:/mnt"]
-            if service == "gateway" or service == "pvagateway":
-                write_config_file(f"{output_dir}/__docker__/{service}", GATEWAY_EXEC, "docker_run.sh")
-                docker_compose['services'][service]['command'] = "sh -c /mnt/docker_run.sh"
-            else:
-                if os.path.isfile(mount_path + "/start.sh"):
-                    docker_compose['services'][service]['command'] = "sh -c /mnt/start.sh"
+            svc['env_file'] = ["epics.env"]
 
+        # --- Service-specific env vars ---
+        if 'env' in service_val:
+            svc_env = {}
+            for e in service_val['env']:
+                svc_env[e['name']] = str(e['value'])
+            svc['environment'] = svc_env
+
+        # --- Mount host-side service config if available ---
+        if host_dir:
+            svc_host_dir = os.path.join(host_dir, 'services', service)
+            if os.path.isdir(svc_host_dir):
+                dest = os.path.join(output_dir, "services", service)
+                copy_directory(svc_host_dir, dest)
+                # Write a service init.yaml for reference
+                write_file(os.path.join(dest, "init"),
+                           yaml.dump(service_val, default_flow_style=False), "init.yaml")
+                render_j2_files(dest, service_val)
+                svc['volumes'] = [f"./services/{service}:/mnt"]
+
+        docker_compose['services'][service] = svc
         print(f"* added service {service}")
 
-    # Process IOCs
+    # ---- Process IOCs ----
     for ioc in epics_config.get('iocs', []):
-        if selected_services and ioc['name'] not in selected_services:
+        ioc_name = ioc['name']
+        if selected_services and ioc_name not in selected_services:
             continue
-        image = ioc.get('image', 'ghcr.io/infn-epics/infn-epics-ioc-runtime')
-        docker_compose['services'][ioc['name']] = {'image': image}
-        docker_compose['services'][ioc['name']]['tty'] = True
-        docker_compose['services'][ioc['name']]['stdin_open'] = True
-        docker_compose['services'][ioc['name']]['ports'] = ["5064/tcp", "5064/udp", "5065/tcp", "5065/udp", "5075/tcp", "5075/udp"]
-        
-        todump = ioc
-        if 'iocparam' in todump:
-            for k in todump['iocparam']:
-                todump[k['name']] = k['value']
-            del todump['iocparam']
-        todump['iocname'] = ioc['name']
-        config_content = yaml.dump(todump, default_flow_style=False)
-        config_dir =f"{output_dir}/__docker__/{ioc['name']}"
+        if ioc_name in exclude_services:
+            print(f"%% ioc {ioc_name} excluded")
+            continue
 
-        write_config_file(f"{config_dir}/init", config_content, "config.yaml")
-        config_file = f"{config_dir}/init/config.yaml"
-        if 'networks' in ioc:
-            docker_compose['services'][ioc['name']]['network_mode'] = 'host'
+        image = ioc.get('image', DEFAULT_IOC_IMAGE)
+        svc = {
+            'image': image,
+            'tty': True,
+            'stdin_open': True,
+        }
+        if platform:
+            svc['platform'] = platform
 
+        # Build the IOC config that the container will consume
+        ioc_cfg = copy.deepcopy(ioc)
+        # Unroll iocparam list into top-level keys (same as epik8s-run)
+        if 'iocparam' in ioc_cfg:
+            for p in ioc_cfg['iocparam']:
+                ioc_cfg[p['name']] = p['value']
+            del ioc_cfg['iocparam']
+        ioc_cfg['iocname'] = ioc_name
+
+        # Write per-IOC config directory
+        ioc_dir = os.path.join(output_dir, "iocs", ioc_name)
+        config_content = yaml.dump(ioc_cfg, default_flow_style=False)
+        write_file(ioc_dir, config_content, "config.yaml")
+
+        # Also write the full beamline YAML so epik8s-run can resolve defaults
+        beamline_yaml = os.path.join(output_dir, "iocs", ioc_name, "beamline.yaml")
+        with open(beamline_yaml, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+        # Container volumes: mount per-IOC config + a shared workdir
+        svc['volumes'] = [
+            f"./iocs/{ioc_name}/beamline.yaml:/tmp/epik8s-config.yaml:ro",
+            f"./iocs/{ioc_name}:/workdir",
+        ]
+
+        # The container runs epik8s-run in native mode — images already have
+        # ibek-templates, ibek-support, jnjrender installed.
+        svc['command'] = [
+            "epik8s-run", "/tmp/epik8s-config.yaml", ioc_name,
+            "--native", "--workdir", "/workdir",
+        ]
+
+        # Environment
         if env_content:
-            docker_compose['services'][ioc['name']]['env_file'] = [f"__docker__.env"]
-       
-        if 'iocdir' in ioc:
-            mount_path = determine_mount_path(host_dir, 'iocs', ioc.get('iocdir', ioc['name']), output_dir)
-        
-        if 'template' in ioc:
-            template= ioc['template']
-            # Find template.yaml.j2 recursively in /epics/support/ibek-templates/
-            template_name = template+".yaml.j2"
-            template_path = None
-            template_dir = None
-            print(f"* IBEK Search '{template_name}' in {args.ibek_template_repo}")
+            svc['env_file'] = ["epics.env"]
+        if 'env' in ioc:
+            svc_env = {}
+            for e in ioc['env']:
+                svc_env[e['name']] = str(e['value'])
+            svc['environment'] = svc_env
 
-            for root, dirs, files in os.walk(args.ibek_template_repo):
-                if template_name in files:
-                    template_path = os.path.join(root, template_name)
-                    template_dir = root
-                    break
-            if template_path:
-                ## this is a ibek template
-                # Call jnjrender with the found template file
+        # Copy host-side IOC config if available
+        if host_dir:
+            ioc_host_dir = os.path.join(host_dir, 'iocs', ioc.get('iocdir', ioc_name))
+            if os.path.isdir(ioc_host_dir):
+                dest = os.path.join(ioc_dir, "config")
+                copy_directory(ioc_host_dir, dest)
+                render_j2_files(dest, ioc_cfg)
+                svc['volumes'].append(f"./iocs/{ioc_name}/config:/epics/ioc/config")
 
-                dump_exec(config_dir)
-                run_jnjrender(template_dir,config_file,config_dir)
-                
-                ibek_count += 1
-                ioc['ibek'] = True
-            else:
-                print(f"* Searching '{ioc['template']}' in {args.epics_support_template_repo}")
-                ## search directory ioc['template'] in /epics/support/support-templates
-                template_path = None
+        docker_compose['services'][ioc_name] = svc
+        print(f"* added ioc {ioc_name}")
 
-                for root, dirs, files in os.walk(args.epics_support_template_repo):
-                    if template in dirs:
-                        template_path = os.path.join(root, template)
-                        template_dir = root
-                        break
-                if template_path:
-                    run_jnjrender(template_path,config_file,config_dir)
-                    if 'host' in ioc:
-                        run_jnjrender(app_dir()+"/nfsmount.sh.j2",config_file,config_dir)
-                        # copy config_file to iocconfig
-                        if os.path.exists("/BUILD_INFO.txt"):
-                            shutil.copy("/BUILD_INFO.txt", os.path.join(config_dir, "BUILD_INFO.txt"))
-                        shutil.copy(config_file, os.path.join(config_dir, f"{ioc['name']}-config.yaml"))
-                        ## run_remote(ioc,config_dir,args.workdir)
-                    
-            
-        if mount_path:
-            copy_directory(f"{output_dir}/{mount_path}", f"{output_dir}/__docker__/{ioc['name']}")
-            docker_compose['services'][ioc['name']]['volumes'] = [f"./__docker__/{ioc['name']}:/mnt"]
-            
-
-            
-
-            write_config_file(f"{output_dir}/__docker__/{ioc['name']}/init", config_content, "init.yaml")
-            try:
-                render_j2_files(f"{output_dir}/__docker__/{ioc['name']}",todump) # f"{output_dir}/__docker__/{ioc['name']}/init/init.yaml")
-            except Exception as e:
-                if e:
-                    print(f"## error in IOC {ioc['name']} rendering '{output_dir}/__docker__/{ioc['name']}'\n\n{e}")
-                else:
-                    print(f"## error in IOC {ioc['name']} rendering '{output_dir}/__docker__/{ioc['name']}'")
-
-                sys.exit(1)
-                
-            exec_content = render_config(IOC_EXEC, ioc)
-            write_config_file(f"{output_dir}/__docker__/{ioc['name']}", exec_content, "docker_run.sh")
-            
-            docker_compose['services'][ioc['name']]['command'] = f"sh -c /mnt/docker_run.sh"
-            
-        print(f"* added ioc {ioc['name']}")
-
+    # ---- Write shared files ----
     if env_content:
-        env_content += "\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
-        write_config_file(output_dir, env_content, "__docker__.env")
+        env_content += "export EPICS_CA_AUTO_ADDR_LIST=NO\n"
+        write_file(output_dir, env_content, "epics.env")
+        print(f"* wrote {output_dir}/epics.env")
 
     if env_host_content:
-        env_host_content += "\nexport EPICS_CA_AUTO_ADDR_LIST=NO\n"
-        write_config_file(output_dir, env_host_content, "epics-channel.env")
+        env_host_content += "export EPICS_CA_AUTO_ADDR_LIST=NO\n"
+        write_file(output_dir, env_host_content, "epics-channel.env")
+        print(f"* wrote {output_dir}/epics-channel.env  (source this on the host to reach the beamline)")
     else:
-        print("%% no environment file generated, no services gateway services selected")
+        print("%% no host environment file generated (no gateway with loadbalancer)")
 
     return docker_compose
 
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
 def main_compose():
-    caport = 5064
-    pvaport = 5075
-    ingressport = 8090
-    parser = argparse.ArgumentParser(description="Generate docker-compose.yaml and config.yaml for EPICS IOC.")
-    parser.add_argument('--config', required=True, help="Path to the configuration file (YAML).")
-    parser.add_argument('--host-dir', required=False, help="Base directory on the host.")
-    parser.add_argument('--output', help="Output directory for the generated files.")
-    parser.add_argument('--services', nargs='+', help="List of services to include in the output (default ALL).")
-    parser.add_argument('--exclude', nargs='+', help="List of services to exclude in the output")
-    parser.add_argument("--version", action="store_true", help="Show the version and exit")  # Add this option
+    parser = argparse.ArgumentParser(
+        description="Generate a ready-to-use docker-compose directory from an EPIK8S beamline YAML.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('--config', required=True, help="Path to the beamline configuration file (YAML).")
+    parser.add_argument('--host-dir', default=None, help="Base directory with host-side service/IOC configs to mount.")
+    parser.add_argument('--output', help="Output directory (default: <beamline>-compose).")
+    parser.add_argument('--services', nargs='+', help="Only include these services/IOCs (default: all).")
+    parser.add_argument('--exclude', nargs='+', help="Exclude these services/IOCs.")
+    parser.add_argument('--platform', default="linux/amd64", help="Docker platform for all containers.")
 
-    parser.add_argument('--caport', default=caport, help="Start CA access port to map on host")
-    parser.add_argument('--pvaport', default=pvaport, help="Start PVA port to map on host")
-    parser.add_argument('--htmlport', default=ingressport, help="Start ingress (http) port on host")
-    parser.add_argument('--ibek-template-repo', default="https://github.com/infn-epics/ibek-templates.git", help="Ibek template repoository GIT URL")
-    parser.add_argument('--epics-support-template-repo', default="https://github.com/infn-epics/epics-support-template-infn.git", help="EPICS iocs template repoository GIT URL")
+    parser.add_argument('--caport', type=int, default=5064, help="Starting CA port to map on host.")
+    parser.add_argument('--pvaport', type=int, default=5075, help="Starting PVA port to map on host.")
+    parser.add_argument('--htmlport', type=int, default=8090, help="Starting HTTP/ingress port on host.")
 
+    parser.add_argument("--version", action="store_true", help="Show the version and exit.")
 
     args = parser.parse_args()
     if args.version:
         print(f"epik8s-compose version {__version__}")
         exit(0)
-    caport = args.caport
-    pvaport = args.pvaport
-    ingressport = args.htmlport
+
+    config = parse_config(args.config)
+    apply_ioc_defaults(config)
+
     output_dir = args.output
-    yl = parse_config(args.config)
-    if args.output is None and 'beamline' in yl:
-        output_dir = f"{yl['beamline']}-compose"
+    if output_dir is None and 'beamline' in config:
+        output_dir = f"{config['beamline']}-compose"
+    if output_dir is None:
+        output_dir = "compose-output"
     os.makedirs(output_dir, exist_ok=True)
+    args.output_dir = output_dir
 
-    # Copy host_dir and config to output_dir
+    # Resolve host-dir to an absolute path if provided
     if args.host_dir:
-        copy_directory(args.host_dir, os.path.join(output_dir, 'config'))
-        shutil.copy(args.config, os.path.join(output_dir, 'config.yaml'))
-        print(f"* copied {args.host_dir} to {output_dir}/config")
-    
-    print(f"* copied {args.config} to {output_dir}/config.yaml")
+        args.host_dir = os.path.abspath(args.host_dir)
 
-    ## clone templates in output_dir
-    ibek_templates_dir = os.path.join(output_dir, 'ibek-templates')
-    epics_support_templates_dir = os.path.join(output_dir, 'epics-support-templates')
-    if not os.path.exists(ibek_templates_dir):
-        print(f"* cloning ibek templates from {args.ibek_template_repo} to {ibek_templates_dir}")
-        os.system(f"git clone {args.ibek_template_repo} {ibek_templates_dir}")
-    else:
-        print(f"* ibek templates already cloned in {ibek_templates_dir}")
-    if not os.path.exists(epics_support_templates_dir):
-        print(f"* cloning epics support templates from {args.epics_support_template_repo} to {epics_support_templates_dir}")
-        os.system(f"git clone {args.epics_support_template_repo} {epics_support_templates_dir}")
-    else:  
-        print(f"* epics support templates already cloned in {epics_support_templates_dir}")
+    print(f"* output directory: {output_dir}")
 
-    try:
-        docker_compose = generate_docker_compose_and_configs(output_dir, args, int(caport), int(pvaport),ingressport)
-    except FileNotFoundError as e:
-        print(e)
-        return
+    docker_compose = generate_docker_compose(
+        config, args,
+        caport=args.caport,
+        pvaport=args.pvaport,
+        ingressport=args.htmlport,
+    )
 
     dcf = os.path.join(output_dir, 'docker-compose.yaml')
-    with open(dcf, 'w') as output_file:
-        yaml.dump(docker_compose, output_file, default_flow_style=False)
+    with open(dcf, 'w') as f:
+        yaml.dump(docker_compose, f, default_flow_style=False)
 
-    print(f"* docker compose file '{dcf}'")
+    print(f"* docker-compose file: {dcf}")
+    print(f"\nTo start the beamline:\n  cd {output_dir} && docker compose up")
 
 
 if __name__ == "__main__":
