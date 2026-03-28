@@ -9,9 +9,9 @@
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/eli_values.yaml",
                     "bdelilibera01",
@@ -31,9 +31,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            "python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/sparc_values.yaml",
                     "vga-gun01",
@@ -53,9 +53,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/rke2_test.yaml",
                     "key-test",
@@ -75,9 +75,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/sparc_values.yaml",
                     "bdsparcac1bpm001",
@@ -97,8 +97,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/sparc_values.yaml",
                     "vga-gun01",
@@ -117,9 +118,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/eli_values.yaml",
                     "camerasim",
@@ -138,9 +139,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_run.py",
+            "module": "epik8s_tools.epik8s_run",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "tests/eli_values.yaml",
                     "camerasim",
@@ -155,13 +156,32 @@
             }
         },
         {
+            "name": "Python: COMPOSE BEAMLINE TEST",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "module": "epik8s_tools.epik8s_compose",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args":[
+                    "--config", "./tests/beamline.yaml",
+                   // "--services","diag-tml","gateway","cam01"
+                    //"vgcon01","vgcon02","vpcon17","vpcon19",
+                    
+                ],
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
             "name": "Python: COMPOSE ELI",
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+            "module": "epik8s_tools.epik8s_compose",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "--config", "./tests/eli_values.yaml",
                     "--host-dir", "./tests/eli_config",
@@ -180,9 +200,9 @@
             "type": "python",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/epik8s_tools/epik8s_compose.py",
+            "module": "epik8s_tools.epik8s_compose",
             "console": "integratedTerminal",
-            //"python": "${workspaceFolder}/.epik8s-tools/bin/python",
+            "python": "${workspaceFolder}/.venv/bin/python",
             "args":[
                     "--config", "./tests/eli_values.yaml",
                     "--pvaport","5175",
