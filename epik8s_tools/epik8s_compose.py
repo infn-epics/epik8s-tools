@@ -11,12 +11,12 @@ from .epik8s_common import apply_ioc_defaults
 
 # Default images for well-known services
 DEFAULT_SERVICE_IMAGES = {
-    "gateway": "baltig.infn.it:4567/epics-containers/docker-ca-gateway",
+    "gateway": "ghcr.io/infn-epics/docker-ca-gateway:latest",
     "pvagateway": "baltig.infn.it:4567/epics-containers/docker-pva-gateway",
-    "archiver": "ghcr.io/slacmshankar/epicsarchiverap",
+    "archiver": "ghcr.io/infn-epics/docker-archiver-appliance",
     "pvws": "ghcr.io/infn-epics/phoebus-pvws",
     "dbwr": "ghcr.io/infn-epics/phoebus-dbwr",
-    "notebook": "ghcr.io/infn-epics/jupyter-control-notebook",
+    "notebook": "ghcr.io/infn-epics/jupyter-science-epics:latest",
     "alarmserver": "ghcr.io/infn-epics/phoebus-alarm-server",
     "alarmlogger": "ghcr.io/infn-epics/phoebus-alarm-logger",
     "saveandrestore": "ghcr.io/infn-epics/phoebus-save-and-restore",
@@ -42,6 +42,8 @@ SERVICE_INTERNAL_PORTS = {
 }
 
 DEFAULT_IOC_IMAGE = "ghcr.io/infn-epics/infn-epics-ioc-runtime"
+DEFAULT_HOSTNETWORK_CA_PORT_BASE = 16064
+DEFAULT_HOSTNETWORK_PVA_PORT_BASE = 17075
 
 
 def parse_config(file_path):
@@ -92,6 +94,53 @@ def _resolve_image(service_name, service_val):
     return None, True
 
 
+def _is_enabled(value):
+    """Interpret common truthy values from YAML/CLI content."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _ioc_discovery_target(ioc):
+    """Return a resolvable target token for CA/PVA discovery env vars."""
+    if _is_enabled(ioc.get('hostNetwork')):
+        # With host networking, Docker DNS service names are not guaranteed to resolve.
+        # Prefer an explicit override when provided.
+        return str(ioc.get('hostAddress') or ioc.get('discoveryHost') or 'host.docker.internal')
+    return str(ioc['name'])
+
+
+def _ioc_runtime_info(ioc, hostnetwork_index):
+    """Compute networking/runtime details for an IOC entry."""
+    hostnetwork = _is_enabled(ioc.get('hostNetwork'))
+    info = {
+        'hostnetwork': hostnetwork,
+        'ca_server_port': None,
+        'ca_beacon_port': None,
+        'pva_server_port': None,
+        'ca_target': str(ioc['name']),
+        'pva_target': str(ioc['name']),
+    }
+    if not hostnetwork:
+        return info
+
+    host = _ioc_discovery_target(ioc)
+    ca_server_port = int(ioc.get('caServerPort', DEFAULT_HOSTNETWORK_CA_PORT_BASE + (hostnetwork_index * 2)))
+    ca_beacon_port = int(ioc.get('caBeaconPort', ca_server_port + 1))
+    pva_server_port = int(ioc.get('pvaServerPort', DEFAULT_HOSTNETWORK_PVA_PORT_BASE + hostnetwork_index))
+
+    info.update({
+        'ca_server_port': ca_server_port,
+        'ca_beacon_port': ca_beacon_port,
+        'pva_server_port': pva_server_port,
+        'ca_target': f"{host}:{ca_server_port}",
+        'pva_target': f"{host}:{pva_server_port}",
+    })
+    return info
+
+
 # ---------------------------------------------------------------------------
 # Core generation
 # ---------------------------------------------------------------------------
@@ -112,18 +161,30 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
     epics_config = config.get('epicsConfiguration', {})
     docker_compose = {'services': {}}
 
-    # ---- Collect IOC names for the env / address lists ----
+    # ---- Collect IOC names/targets for env vars and startup ordering ----
+    ioc_service_names = []
+    ioc_runtime = {}
     epics_ca_addr_list = []
     epics_pva_addr_list = []
+    has_hostnetwork_ioc = False
+    hostnetwork_ioc_index = 0
     for ioc in epics_config.get('iocs', []):
         name = ioc['name']
         if selected_services and name not in selected_services:
             continue
         if name in exclude_services:
             continue
-        epics_ca_addr_list.append(name)
+
+        info = _ioc_runtime_info(ioc, hostnetwork_ioc_index)
+        if info['hostnetwork']:
+            hostnetwork_ioc_index += 1
+
+        ioc_runtime[name] = info
+        ioc_service_names.append(name)
+        epics_ca_addr_list.append(info['ca_target'])
+        has_hostnetwork_ioc = has_hostnetwork_ioc or info['hostnetwork']
         if ioc.get('pva'):
-            epics_pva_addr_list.append(name)
+            epics_pva_addr_list.append(info['pva_target'])
 
     # Env file shared by all containers (IOC-to-IOC address discovery)
     env_content = None
@@ -161,14 +222,14 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
                     f"{caport}:5064/tcp", f"{caport}:5064/udp",
                     f"{caport+1}:5065/tcp", f"{caport+1}:5065/udp",
                 ]
-                svc['depends_on'] = {n: {"condition": "service_started"} for n in epics_ca_addr_list}
+                svc['depends_on'] = {n: {"condition": "service_started"} for n in ioc_service_names}
                 env_host_content += f"export EPICS_CA_ADDR_LIST=localhost:{caport}\n"
                 caport += 2
             if service == "pvagateway":
                 svc['ports'] = [
                     f"{pvaport}:5075/tcp", f"{pvaport+1}:5076/udp",
                 ]
-                svc['depends_on'] = {n: {"condition": "service_started"} for n in epics_pva_addr_list}
+                svc['depends_on'] = {n: {"condition": "service_started"} for n in ioc_service_names}
                 env_host_content += f"export EPICS_PVA_NAME_SERVERS=localhost:{pvaport}\n"
                 pvaport += 2
 
@@ -189,6 +250,14 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
             for e in service_val['env']:
                 svc_env[e['name']] = str(e['value'])
             svc['environment'] = svc_env
+
+        if _is_enabled(service_val.get('hostNetwork')):
+            # Host networking and explicit published ports are mutually exclusive.
+            svc['network_mode'] = 'host'
+            svc.pop('ports', None)
+        elif has_hostnetwork_ioc:
+            # Ensure host.docker.internal resolves on Linux Docker engines too.
+            svc['extra_hosts'] = ["host.docker.internal:host-gateway"]
 
         # --- Mount host-side service config if available ---
         if host_dir:
@@ -213,6 +282,8 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
         if ioc_name in exclude_services:
             print(f"%% ioc {ioc_name} excluded")
             continue
+
+        ioc_net = ioc_runtime.get(ioc_name, {'hostnetwork': False})
 
         image = ioc.get('image', DEFAULT_IOC_IMAGE)
         svc = {
@@ -245,7 +316,7 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
         # Container volumes: mount per-IOC config + a shared workdir
         svc['volumes'] = [
             f"./iocs/{ioc_name}/beamline.yaml:/tmp/epik8s-config.yaml:ro",
-            f"./iocs/{ioc_name}:/workdir",
+            "./iocs:/workdir",
         ]
 
         # The container runs epik8s-run in native mode — images already have
@@ -256,13 +327,26 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
         ]
 
         # Environment
-        if env_content:
+        if env_content and not ioc_net.get('hostnetwork'):
             svc['env_file'] = ["epics.env"]
         if 'env' in ioc:
             svc_env = {}
             for e in ioc['env']:
                 svc_env[e['name']] = str(e['value'])
             svc['environment'] = svc_env
+
+        if ioc_net.get('hostnetwork'):
+            # Host networking and explicit published ports are mutually exclusive.
+            svc['network_mode'] = 'host'
+            svc.pop('ports', None)
+            svc_env = svc.setdefault('environment', {})
+            svc_env.setdefault('EPICS_CAS_SERVER_PORT', str(ioc_net['ca_server_port']))
+            svc_env.setdefault('EPICS_CAS_BEACON_PORT', str(ioc_net['ca_beacon_port']))
+            if ioc.get('pva'):
+                svc_env.setdefault('EPICS_PVAS_SERVER_PORT', str(ioc_net['pva_server_port']))
+        elif has_hostnetwork_ioc:
+            # Ensure host.docker.internal resolves on Linux Docker engines too.
+            svc['extra_hosts'] = ["host.docker.internal:host-gateway"]
 
         # Copy host-side IOC config if available
         if host_dir:
@@ -301,7 +385,7 @@ def main_compose():
         description="Generate a ready-to-use docker-compose directory from an EPIK8S beamline YAML.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument('--config', required=True, help="Path to the beamline configuration file (YAML).")
+    parser.add_argument('--config', help="Path to the beamline configuration file (YAML).")
     parser.add_argument('--host-dir', default=None, help="Base directory with host-side service/IOC configs to mount.")
     parser.add_argument('--output', help="Output directory (default: <beamline>-compose).")
     parser.add_argument('--services', nargs='+', help="Only include these services/IOCs (default: all).")
@@ -318,6 +402,9 @@ def main_compose():
     if args.version:
         print(f"epik8s-compose version {__version__}")
         exit(0)
+
+    if not args.config:
+        parser.error("the following arguments are required: --config")
 
     config = parse_config(args.config)
     apply_ioc_defaults(config)
