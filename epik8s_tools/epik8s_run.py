@@ -206,7 +206,20 @@ def iocrun(iocs, appargs):
                         shutil.copy(config_file, os.path.join(iocconfig, f"{ioc_name}-config.yaml"))
                         run_remote(ioc,iocconfig,appargs.workdir)
                     continue
-    
+        else:
+            # No template: if host is specified, use configdir as template_path
+            if 'host' in ioc:
+                template_path = appargs.configdir
+                iocconfig = f"{config_dir}/{ioc_name}"
+                os.makedirs(iocconfig, exist_ok=True)
+                run_jnjrender(template_path, config_file, iocconfig)
+                run_jnjrender(script_dir+"/nfsmount.sh.j2", config_file, iocconfig)
+                if os.path.exists("/BUILD_INFO.txt"):
+                    shutil.copy("/BUILD_INFO.txt", os.path.join(iocconfig, "BUILD_INFO.txt"))
+                shutil.copy(config_file, os.path.join(iocconfig, f"{ioc_name}-config.yaml"))
+                run_remote(ioc, iocconfig, appargs.workdir)
+                continue
+
     if ibek_count>0:
         start_command = f"{config_dir}/ioc_exec.sh"
         # Execute the command in IOC_EXEC
