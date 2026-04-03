@@ -67,17 +67,50 @@ epik8s-tools my_project --beamline MyBeamline --iocbaseip 10.96.0.0/12 --beamlin
 
 ### Generating OPI Panels
 
-To generate OPI panels from YAML configuration files, you can use the `epik8s-opigen` tool. This tool reads a YAML file with OPI configurations and outputs the generated OPI files in the specified project directory.
+To generate OPI panels from beamline YAML configuration files, you can use the `epik8s-opigen` tool. This tool reads a beamline configuration and produces a Phoebus project with a generated launcher, `settings.ini`, and a local copy or link to the reusable `epik8s-opi` widget library.
 
 #### Example Command
 
 ```bash
-epik8s-opigen --yaml deploy/values.yaml --projectdir opi-output
+epik8s-opigen --config deploy/values.yaml --projectdir opi-output
 ```
-- **`--yaml`**: Path to the YAML configuration file (e.g., `deploy/values.yaml`).
+- **`--config`**: Path to the beamline YAML configuration file (e.g., `deploy/values.yaml`).
 - **`--projectdir`**: Directory where the OPI files will be generated (e.g., `opi-output`).
 
 This command will generate the OPI panel files based on the configurations specified in the YAML file and save them in the specified output directory.
+
+The generated `Launcher.bob` uses a **dashboard layout** rather than nested tabs:
+
+- **Header banner** with beamline name, IOC count, and namespace
+- **Device-group sections** (Motors, Cameras, Vacuum, etc.) each showing:
+  - A section header with device count
+  - One row per device with an **embedded compact display** (e.g., `mot_channel.bob` for motors) showing live status inline
+  - An **"Open ⬈" button** per device that opens the full detail screen (e.g., `Motor_Main.bob`, `Camera_Main.bob`) in an **independent Phoebus window**
+- **Services section** showing gateways and load balancer IPs
+
+This design replaces the previous tab-locked layout, allowing operators to simultaneously view and control devices of different types (e.g., motors and cameras) in separate windows.
+
+#### Detailed Launcher
+
+To generate a super-detailed per-IOC interface that includes PV monitoring and control panels, use the `--detailed` flag together with `--pvlist-dir` pointing to a directory containing runtime-generated PV lists:
+
+```bash
+epik8s-opigen --config beamline.yaml --projectdir opi \
+  --detailed --pvlist-dir test-compose/iocs
+```
+
+The `--pvlist-dir` directory is expected to contain one subdirectory per IOC name, each with a `pvlist.txt` file (e.g., `test-compose/iocs/motorsim/pvlist.txt`).
+
+This produces a `Launcher_detailed.bob` (customizable via `--detailed-output`) organized as:
+
+- **Overview** tab — beamline summary identical to the normal launcher.
+- **Per-IOC tabs** (one tab per IOC), each containing:
+  - **Info** — static IOC metadata from the YAML (prefix, template, devices, parameters).
+  - **Per-device sub-tabs** — PV readback (`TextUpdate`) and setpoint (`TextEntry`) widgets for every PV, automatically categorized by subsystem (e.g., Main, Roi1, Stats1, Proc1).
+  - **Other PVs** — PVs that could not be matched to a known device.
+  - **All PVs** — flat list of every PV published by the IOC.
+
+PVs ending in `_RBV` are rendered as read-only `TextUpdate` widgets; all others are rendered as editable `TextEntry` widgets.
 
 ---
 
