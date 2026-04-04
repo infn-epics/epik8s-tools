@@ -220,16 +220,11 @@ def _ioc_runtime_info(ioc, hostnetwork_index):
 
 
 def _ioc_supports_pva(ioc):
-    """Return True when an IOC should be advertised through PVA discovery."""
-    if 'pvaDiscovery' in ioc:
-        return _is_enabled(ioc.get('pvaDiscovery'))
+    """Return True unless an IOC explicitly opts out with pva: false."""
+    if 'pva' in ioc:
+        return _is_enabled(ioc.get('pva'))
 
-    if _is_enabled(ioc.get('pva')):
-        return True
-
-    devtype = str(ioc.get('devtype', '')).strip().lower()
-    template = str(ioc.get('template', '')).strip().lower()
-    return devtype == 'softioc' or template == 'softioc'
+    return True
 
 
 def _private_network_info(config):
@@ -248,6 +243,28 @@ def _private_network_info(config):
         internal = False
 
     return {'enabled': enabled, 'name': name, 'internal': internal}
+
+
+def _compose_service_platform(service_name, default_platform):
+    """Return the compose platform value for a generated service."""
+    if not default_platform:
+        return None
+
+    if service_name == 'notebook' and default_platform == 'linux/amd64':
+        return '${NOTEBOOK_PLATFORM:-linux/arm64}'
+
+    return default_platform
+
+
+def _service_is_enabled(service_name, service_map, selected_services, exclude_services):
+    """Return True when a service is configured and not filtered out."""
+    if service_name not in service_map:
+        return False
+    if selected_services and service_name not in selected_services:
+        return False
+    if service_name in exclude_services:
+        return False
+    return True
 
 
 def _port_is_free(port, proto):
@@ -708,8 +725,9 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
             continue
 
         svc = {'image': image}
-        if platform:
-            svc['platform'] = platform
+        service_platform = _compose_service_platform(service, platform)
+        if service_platform:
+            svc['platform'] = service_platform
 
         # --- Loadbalancer ports (gateway / pvagateway) ---
         if 'loadbalancer' in service_val:
@@ -777,10 +795,19 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
                 svc_env[e['name']] = str(e['value'])
             svc['environment'] = svc_env
 
-        # --- Notebook-specific: token, pip, work volume ---
+        # --- Notebook-specific: token, gateway env, pip, work volume ---
         if service == 'notebook':
             svc_env = svc.get('environment', {})
             svc_env['JUPYTER_TOKEN'] = ''
+            if _is_enabled(service_val.get('usegateway')):
+                services_cfg = epics_config.get('services', {})
+                if _service_is_enabled('gateway', services_cfg, selected_services, exclude_services):
+                    svc_env['EPICS_CA_ADDR_LIST'] = 'gateway'
+                    svc_env['EPICS_CA_AUTO_ADDR_LIST'] = 'NO'
+                if _service_is_enabled('pvagateway', services_cfg, selected_services, exclude_services):
+                    svc_env['EPICS_PVA_NAME_SERVERS'] = 'pvagateway'
+                    svc_env['EPICS_PVA_ADDR_LIST'] = 'pvagateway'
+                    svc_env['EPICS_PVA_AUTO_ADDR_LIST'] = 'NO'
             svc['environment'] = svc_env
 
             pip_packages = service_val.get('pip', [])

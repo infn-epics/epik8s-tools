@@ -1166,7 +1166,7 @@ def main_opigen():
                         help="Main OPI file name")
     parser.add_argument("--title", type=str, default=None,
                         help="Title for the launcher (default: '<beamline> Launcher')")
-    parser.add_argument("--projectdir", type=str,
+    parser.add_argument("--projectdir", type=str, default="opi",
                         help="Directory where all project files will be generated")
     parser.add_argument("--width", type=int, default=1900,
                         help="Width of the launcher screen")
@@ -1198,6 +1198,8 @@ def main_opigen():
     parser.add_argument("--detailed-output", type=str,
                         default="Launcher_detailed.bob",
                         help="Output filename for the detailed launcher")
+    parser.add_argument("--generate-settings-ini", action="store_true",
+                        help="Generate settings.ini in the OPI project directory")
 
     args = parser.parse_args()
     if args.version:
@@ -1296,9 +1298,10 @@ def main_opigen():
         _generate_detailed_launcher(conf, iocs, args, project_dir)
 
     # ------------------------------------------------------------------
-    # Generate settings.ini
+    # Generate settings.ini (optional)
     # ------------------------------------------------------------------
-    _generate_settings(conf, script_dir, project_dir)
+    if args.generate_settings_ini:
+        _generate_settings(conf, script_dir, project_dir)
 
 
 if __name__ == "__main__":

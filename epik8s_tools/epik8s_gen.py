@@ -36,6 +36,7 @@ def generate_readme(values, dir, output_file):
         yaml_data['pvagatewayip']=yaml_data['services']['pvagateway']['loadbalancer']
     yaml_data['version'] = __version__
     yaml_data['time'] = datetime.today().date()
+    yaml_data.setdefault('generate_settings_ini', False)
     env = Environment(loader=FileSystemLoader(searchpath=dir))
     template = env.get_template('README.md')
     for ioc in yaml_data['iocs']:
@@ -114,11 +115,10 @@ def copy_corresponding_directories(values, script_dir, project_name):
                     shutil.copytree(source_dir, os.path.join(target_dir, entry), dirs_exist_ok=True)
                     #print(f"Copied directory {entry} to {target_dir}")
 
-def create_project(project_name, replacements):
+def create_project(project_name, replacements, generate_settings_ini=False):
     script_dir = os.path.dirname(os.path.realpath(__file__)) + "/template/"
     rendered_values = render_template(script_dir + 'values.yaml', replacements)
     rendered_deploy = render_template(script_dir + 'deploy.yaml', replacements)
-    rendered_settings = render_template(script_dir + 'settings.ini', replacements)
     
     create_directory_tree(project_name)
     values = yaml.safe_load(rendered_values)
@@ -129,11 +129,14 @@ def create_project(project_name, replacements):
     values['pvagatewayip']=replacements['pvagatewayip']
     values['version'] = replacements['version']
     values['time'] = replacements['time']
+    values['generate_settings_ini'] = generate_settings_ini
 
     copy_corresponding_directories(values, script_dir, project_name)
     create_chart_yaml(project_name, f'{project_name}/deploy')
     create_values_yaml('values.yaml', rendered_values, f'{project_name}/deploy')
-    create_values_yaml('settings.ini', rendered_settings, f'{project_name}/opi')
+    if generate_settings_ini:
+        rendered_settings = render_template(script_dir + 'settings.ini', replacements)
+        create_values_yaml('settings.ini', rendered_settings, f'{project_name}/opi')
     shutil.copy(script_dir + 'epik8s.yaml', f'{project_name}/deploy/templates')
     create_values_yaml(replacements['beamline'] + "-k8s-application.yaml", rendered_deploy, f'{project_name}/')
     generate_readme(values, script_dir, f"{project_name}/README.md")
@@ -158,6 +161,7 @@ def main():
     parser.add_argument("--mysqlchart", action="store_true", help="use mysql custom chart, instead of bitnami (microk8s)")
     parser.add_argument("--channelfinder", action="store_true", help="enable channelfinder and chfeeder")
     parser.add_argument("--token", default="", help="GIT personal token, empty unautheticated")
+    parser.add_argument("--generate-settings-ini", action="store_true", help="Generate opi/settings.ini in the created project")
 
 
     parser.add_argument(
@@ -271,7 +275,7 @@ def main():
         
     }
 
-    create_project(args.project_name, replacements)
+    create_project(args.project_name, replacements, generate_settings_ini=args.generate_settings_ini)
     
 if __name__ == "__main__":
     main()

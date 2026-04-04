@@ -49,6 +49,7 @@ pip install epik8s-tools
 | `--vicpdas`         | Number of simulated ICPDAS devices to generate (default: `1`).                          |
 | `--mysqlchart`      | Use custom MySQL chart instead of Bitnami (for microk8s).                               |
 | `--channelfinder`   | Enable ChannelFinder and feeder services.                                               |
+| `--generate-settings-ini` | Generate `opi/settings.ini` in projects created by `epik8s-gen`.                 |
 | `--openshift`       | Flag for enabling OpenShift support.                                                    |
 | `--token`           | Git personal token for repository access, if required.                                  |
 | `--version`         | Show version information and exit.                                                      |
@@ -67,7 +68,7 @@ epik8s-tools my_project --beamline MyBeamline --iocbaseip 10.96.0.0/12 --beamlin
 
 ### Generating OPI Panels
 
-To generate OPI panels from beamline YAML configuration files, you can use the `epik8s-opigen` tool. This tool reads a beamline configuration and produces a Phoebus project with a generated launcher, `settings.ini`, and a local copy or link to the reusable `epik8s-opi` widget library.
+To generate OPI panels from beamline YAML configuration files, you can use the `epik8s-opigen` tool. This tool reads a beamline configuration and produces a Phoebus project with a generated launcher and a local copy or link to the reusable `epik8s-opi` widget library. Generation of `settings.ini` is optional and disabled by default.
 
 #### Example Command
 
@@ -76,6 +77,13 @@ epik8s-opigen --config deploy/values.yaml --projectdir opi-output
 ```
 - **`--config`**: Path to the beamline YAML configuration file (e.g., `deploy/values.yaml`).
 - **`--projectdir`**: Directory where the OPI files will be generated (e.g., `opi-output`).
+
+If you also want Phoebus settings generated in the project directory, add:
+
+```bash
+epik8s-opigen --config deploy/values.yaml --projectdir opi-output \
+  --generate-settings-ini
+```
 
 This command will generate the OPI panel files based on the configurations specified in the YAML file and save them in the specified output directory.
 
@@ -178,6 +186,8 @@ docker compose up
 - `--services`: include only selected services/IOCs
 - `--exclude`: exclude selected services/IOCs
 - `--platform`: target container platform (default `linux/amd64`)
+
+Generated notebook services are treated specially when `--platform` remains the default `linux/amd64`: `epik8s-compose` emits `platform: ${NOTEBOOK_PLATFORM:-linux/arm64}` for the notebook container. This avoids dead Jupyter kernels on Apple Silicon hosts while preserving `amd64` as the default for the rest of the stack. Set `NOTEBOOK_PLATFORM=linux/amd64` if you explicitly want the notebook container to use `amd64` as well.
 
 ---
 
