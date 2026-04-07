@@ -95,6 +95,53 @@ def _package_template_dir(*parts):
     return os.path.join(os.path.dirname(os.path.realpath(__file__)), 'template', *parts)
 
 
+def _compose_relative_host_path(host_path, output_dir):
+    """Return a compose-friendly host path, relative to the output dir when possible."""
+    output_dir_abs = os.path.abspath(output_dir)
+    host_path_abs = os.path.abspath(host_path)
+    rel_path = os.path.relpath(host_path_abs, output_dir_abs)
+    if rel_path == '.':
+        return '.'
+    if rel_path.startswith('.'):
+        return rel_path
+    return f"./{rel_path}"
+
+
+def _resolve_notebook_work_volume(service_val, host_dir, output_dir):
+    """Resolve the notebook work bind mount from dataVolume.hostPath or fallback."""
+    target_path = '/home/jovyan/work'
+    data_volume = service_val.get('dataVolume', {})
+    host_path = None
+
+    if isinstance(data_volume, str):
+        host_path = data_volume
+    elif isinstance(data_volume, dict):
+        host_path = data_volume.get('hostPath') or data_volume.get('localPath')
+        target_path = str(data_volume.get('mountPath') or target_path)
+
+    if host_path:
+        resolved_host_path = os.path.expanduser(str(host_path))
+        if not os.path.isabs(resolved_host_path):
+            base_dir = host_dir or output_dir
+            resolved_host_path = os.path.abspath(os.path.join(base_dir, resolved_host_path))
+        os.makedirs(resolved_host_path, exist_ok=True)
+        return {
+            'host_path': resolved_host_path,
+            'compose_source': _compose_relative_host_path(resolved_host_path, output_dir),
+            'target_path': target_path,
+            'configured': True,
+        }
+
+    resolved_host_path = os.path.join(output_dir, 'notebook-work')
+    os.makedirs(resolved_host_path, exist_ok=True)
+    return {
+        'host_path': resolved_host_path,
+        'compose_source': './notebook-work',
+        'target_path': target_path,
+        'configured': False,
+    }
+
+
 def copy_directory(src, dest):
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -820,10 +867,17 @@ def generate_docker_compose(config, args, caport, pvaport, ingressport):
                 pip_cmd + "start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''"
             ]
 
-            work_dir = os.path.join(output_dir, "notebook-work")
-            os.makedirs(work_dir, exist_ok=True)
-            svc.setdefault('volumes', []).append("./notebook-work:/home/jovyan/work")
-            print(f"  notebook: token disabled, work volume at {work_dir}")
+            notebook_volume = _resolve_notebook_work_volume(service_val, host_dir, output_dir)
+            svc.setdefault('volumes', []).append(
+                f"{notebook_volume['compose_source']}:{notebook_volume['target_path']}"
+            )
+            if notebook_volume['configured']:
+                print(
+                    f"  notebook: token disabled, persistent host volume "
+                    f"{notebook_volume['host_path']} -> {notebook_volume['target_path']}"
+                )
+            else:
+                print(f"  notebook: token disabled, work volume at {notebook_volume['host_path']}")
             if pip_packages:
                 print(f"  notebook: pip install {' '.join(pip_packages)}")
 

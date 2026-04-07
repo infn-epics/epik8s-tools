@@ -189,6 +189,18 @@ docker compose up
 
 Generated notebook services are treated specially when `--platform` remains the default `linux/amd64`: `epik8s-compose` emits `platform: ${NOTEBOOK_PLATFORM:-linux/arm64}` for the notebook container. This avoids dead Jupyter kernels on Apple Silicon hosts while preserving `amd64` as the default for the rest of the stack. Set `NOTEBOOK_PLATFORM=linux/amd64` if you explicitly want the notebook container to use `amd64` as well.
 
+To keep notebook files persistent in compose, set `epicsConfiguration.services.notebook.dataVolume.hostPath` in the beamline YAML. Relative paths are resolved from the beamline config directory, so a config like this mounts a project folder into Jupyter workdir:
+
+```yaml
+epicsConfiguration:
+  services:
+    notebook:
+      dataVolume:
+        hostPath: notebook_examples
+```
+
+`epik8s-compose` will bind-mount that directory into `/home/jovyan/work` instead of generating the default `notebook-work` folder under the compose output.
+
 ---
 
 ## GitHub Actions
