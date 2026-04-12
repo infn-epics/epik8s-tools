@@ -1142,7 +1142,7 @@ def _load_softioc_config(config_path):
     }
 
 
-def _load_softioc_values(softioc_config_path):
+def _load_softioc_values(softioc_config_path, override_prefix=None):
     """Load values-softioc.yaml and resolve task configs.
 
     Expected format::
@@ -1158,12 +1158,43 @@ def _load_softioc_values(softioc_config_path):
 
         prefix: "SPARC:CONTROL"
         config_dir: /path/to/task/directories
+
+    If the file is a direct task ``config.yaml`` (has ``parameters`` or
+    ``arguments`` keys but no ``tasks``/``config_dir``), it is treated as
+    a single-task descriptor.  The task name is derived from the parent
+    directory name.
     """
     with open(softioc_config_path, 'r') as f:
         sconf = yaml.safe_load(f) or {}
 
-    prefix = sconf.get('prefix', '')
+    prefix = override_prefix if override_prefix is not None else sconf.get('prefix', '')
     tasks = []
+
+    # ── Single-task shortcut: direct task config.yaml passed ─────────────────
+    is_task_config = (
+        ('parameters' in sconf or 'arguments' in sconf or 'pvs' in sconf)
+        and 'tasks' not in sconf
+        and 'config_dir' not in sconf
+    )
+    if is_task_config:
+        config_path = os.path.abspath(softioc_config_path)
+        task_name = os.path.basename(os.path.dirname(config_path))
+        task_conf = _load_softioc_config(softioc_config_path)
+        # When prefix is explicit use it as-is (the full task PV prefix);
+        # otherwise fall back to $(P) so Phoebus can substitute at open time.
+        # In both cases the task name segment is NOT appended — the caller
+        # already knows the full PV prefix.
+        effective_prefix = prefix if prefix else '$(P)'
+        tasks.append({
+            'name': task_name,
+            'label': task_name.replace('-', ' ').replace('_', ' ').title(),
+            'zones': [],
+            'prefix': effective_prefix,
+            'pv_prefix': effective_prefix,   # use verbatim, skip :NAME suffix
+            'config': task_conf,
+            'config_path': config_path,
+        })
+        return {'prefix': effective_prefix, 'tasks': tasks}
 
     # Explicit task list
     for entry in sconf.get('tasks', []):
@@ -1228,34 +1259,45 @@ def _sioc_section_label(grp, uid, text, y, width):
 
 
 def _sioc_pv_row(grp, uid, pv_name, label_text, pv_type, spec, x, y, writable=False):
-    """Add one PV row: label + value widget + optional unit/link info."""
+    """Add one PV row: label + value widget + optional unit/link info.
+
+    For wired PVs (those with a ``link`` in spec) the value widget is bound
+    to the *external* linked PV so operators see the real hardware value.
+    The local softioc record name is shown as a gray annotation to the right.
+    """
     lbl = widget.Label(f"l-{uid}", label_text, x, y, SIOC_LABEL_W, SIOC_ROW_H)
     lbl.font_size(11)
     grp.add_widget(lbl)
 
     vx = x + SIOC_LABEL_W + 4
+    link = spec.get('link', '')
+    unit = spec.get('unit', '')
+
+    # For wired inputs/outputs display the linked external PV as the value;
+    # writable inputs that have no link are operator-settable.
+    display_pv = link if link else pv_name
+
     if pv_type == 'bool' and writable:
-        val = widget.BooleanButton(f"v-{uid}", pv_name, vx, y, 80, SIOC_ROW_H)
+        val = widget.BooleanButton(f"v-{uid}", display_pv, vx, y, 80, SIOC_ROW_H)
         on_label = spec.get('onam', 'On')
         off_label = spec.get('znam', 'Off')
         val.on_label(on_label)
         val.off_label(off_label)
     elif writable:
-        val = widget.TextEntry(f"v-{uid}", pv_name, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
+        val = widget.TextEntry(f"v-{uid}", display_pv, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
         val.font_size(11)
     else:
-        val = widget.TextUpdate(f"v-{uid}", pv_name, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
+        val = widget.TextUpdate(f"v-{uid}", display_pv, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
         val.font_size(11)
     grp.add_widget(val)
 
     info_x = vx + SIOC_VALUE_W + 8
-    unit = spec.get('unit', '')
-    link = spec.get('link', '')
     info_parts = []
     if unit:
         info_parts.append(unit)
     if link:
-        info_parts.append(f"← {link}")
+        # Annotate with the local softioc record so it's visible for debugging
+        info_parts.append(f"→ {pv_name}")
     if info_parts:
         info = widget.Label(f"i-{uid}", '  '.join(info_parts),
                             info_x, y, SIOC_LINK_W + SIOC_UNIT_W, SIOC_ROW_H)
@@ -1281,9 +1323,11 @@ def _build_softioc_detail(task_entry, project_dir):
     rules = conf['rules']
     transforms = conf['transforms']
 
-    task_pv = f"{prefix}:{name.upper().replace('-', '_')}"
-
-    # Calculate needed height
+    task_pv = task_entry.get('pv_prefix') or (
+        f"{prefix}:{name.upper().replace('-', '_')}" if prefix
+        else name.upper().replace('-', '_')
+    )
+    task_pv = f"pva://{task_pv}"
     n_builtin = 4  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN
     n_inputs = len(inputs)
     n_outputs = len(outputs)
@@ -1515,7 +1559,11 @@ def _build_softioc_summary_row(uid, task_entry, bob_name, x, y, row_w):
     name = task_entry['name']
     label = task_entry['label']
     prefix = task_entry['prefix']
-    task_pv = f"{prefix}:{name.upper().replace('-', '_')}"
+    task_pv = task_entry.get('pv_prefix') or (
+        f"{prefix}:{name.upper().replace('-', '_')}" if prefix
+        else name.upper().replace('-', '_')
+    )
+    task_pv = f"pva://{task_pv}"
     conf = task_entry['config']
     mode = conf['parameters'].get('mode', 'continuous')
 
@@ -1715,16 +1763,18 @@ def main_opigen():
     parser.add_argument("--generate-settings-ini", action="store_true",
                         help="Generate settings.ini in the OPI project directory")
     parser.add_argument("--softioc-config", type=str, default=None,
-                        help="Path to values-softioc.yaml for softioc-mng OPI generation")
+                        help="Path to values-softioc.yaml OR a single task config.yaml")
     parser.add_argument("--softioc-only", action="store_true",
                         help="Generate only softioc OPIs (skip beamline launcher)")
+    parser.add_argument("--prefix", type=str, default=None,
+                        help="PV prefix override (e.g. SPARC:CONTROL) for softioc OPI")
 
     args = parser.parse_args()
     if args.version:
         print(f"epik8s-tools version {__version__}")
         return
 
-    if not args.config and not args.softioc_only:
+    if not args.config and not args.softioc_only and not args.softioc_config:
         print("# must define a valid epik8s configuration yaml --yaml <configuration>")
         return -1
 
@@ -1753,14 +1803,14 @@ def main_opigen():
             print(f"## softioc config not found: {args.softioc_config}")
             return -3
         print(f"\n--- Soft IOC OPI generation ---")
-        softioc_data = _load_softioc_values(args.softioc_config)
+        softioc_data = _load_softioc_values(args.softioc_config, override_prefix=args.prefix)
         print(f"Loaded {len(softioc_data['tasks'])} softioc tasks "
               f"(prefix: {softioc_data['prefix']})")
 
     # ------------------------------------------------------------------
     # Softioc-only mode: generate standalone launcher
     # ------------------------------------------------------------------
-    if args.softioc_only:
+    if args.softioc_only or (args.softioc_config and not args.config):
         if not softioc_data or not softioc_data['tasks']:
             print("## No softioc tasks found")
             return -4
