@@ -1766,10 +1766,15 @@ def main_opigen():
                         action="append", dest="softioc_config",
                         help="Path to values-softioc.yaml or a single task config.yaml. "
                              "May be repeated to merge tasks from multiple configs.")
+    parser.add_argument("--softioc-prefix", type=str, default=None,
+                        action="append", dest="softioc_prefix",
+                        help="PV prefix for the corresponding --softioc-config (by position). "
+                             "May be repeated once per --softioc-config. "
+                             "When omitted the prefix is read from the config file or '$(P)'.")
     parser.add_argument("--softioc-only", action="store_true",
                         help="Generate only softioc OPIs (skip beamline launcher)")
     parser.add_argument("--prefix", type=str, default=None,
-                        help="PV prefix override (e.g. SPARC:CONTROL) for softioc OPI")
+                        help="Global PV prefix override applied to all softioc configs")
 
     args = parser.parse_args()
     if args.version:
@@ -1804,11 +1809,14 @@ def main_opigen():
         print(f"\n--- Soft IOC OPI generation ---")
         merged_tasks = []
         merged_prefix = args.prefix or ''
-        for sc_path in args.softioc_config:
+        prefixes = args.softioc_prefix or []
+        for idx, sc_path in enumerate(args.softioc_config):
             if not os.path.exists(sc_path):
                 print(f"## softioc config not found: {sc_path}")
                 return -3
-            sc_data = _load_softioc_values(sc_path, override_prefix=args.prefix)
+            # Per-config prefix: --softioc-prefix[i] > --prefix > config file
+            per_prefix = prefixes[idx] if idx < len(prefixes) else args.prefix
+            sc_data = _load_softioc_values(sc_path, override_prefix=per_prefix)
             if not merged_prefix:
                 merged_prefix = sc_data['prefix']
             merged_tasks.extend(sc_data['tasks'])
