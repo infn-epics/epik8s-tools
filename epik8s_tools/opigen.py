@@ -1817,7 +1817,12 @@ def main_opigen():
 
         sioc_prefix = softioc_data['prefix']
         sioc_title = args.title or f"Soft IOC Manager — {sioc_prefix}"
-        sioc_screen = screen.Screen(sioc_title, os.path.join(project_dir, args.output))
+        # Resolve output path from CWD so that --output opi/foo.bob is not
+        # doubled with the default --projectdir opi.
+        sioc_output_path = os.path.abspath(args.output)
+        sioc_project_dir = os.path.dirname(sioc_output_path)
+        os.makedirs(sioc_project_dir, exist_ok=True)
+        sioc_screen = screen.Screen(sioc_title, sioc_output_path)
         sioc_screen.width(args.width)
         sioc_screen.height(args.height)
 
@@ -1840,12 +1845,12 @@ def main_opigen():
         # Body: softioc section
         section_w = args.width - 2 * DASH_LEFT_PAD
         sioc_section, sioc_h = _build_softioc_dashboard_section(
-            softioc_data, project_dir, DASH_LEFT_PAD, DASH_HEADER_H + 10, section_w)
+            softioc_data, sioc_project_dir, DASH_LEFT_PAD, DASH_HEADER_H + 10, section_w)
         if sioc_section:
             sioc_screen.add_widget(sioc_section)
 
         sioc_screen.write_screen()
-        print(f"\nGenerated {os.path.join(project_dir, args.output)} — '{sioc_title}'")
+        print(f"\nGenerated {sioc_output_path} — '{sioc_title}'")
         return
 
     # ------------------------------------------------------------------
