@@ -1101,6 +1101,520 @@ def _generate_detailed_launcher(conf, iocs, args, project_dir):
 
 
 # ---------------------------------------------------------------------------
+# Soft-IOC (iocmng) OPI generation
+# ---------------------------------------------------------------------------
+
+# Layout constants for softioc detail panels
+SIOC_ROW_H = 26
+SIOC_GAP = 4
+SIOC_LABEL_W = 200
+SIOC_VALUE_W = 220
+SIOC_UNIT_W = 60
+SIOC_LINK_W = 280
+SIOC_SECTION_H = 30
+SIOC_LEFT = 10
+SIOC_DETAIL_W = 900
+
+
+def _load_softioc_config(config_path):
+    """Load and normalise a softioc-mng task config.yaml.
+
+    Returns a dict with keys: parameters, inputs, outputs, rules,
+    transforms, rule_defaults.
+    """
+    with open(config_path, 'r') as f:
+        raw = yaml.safe_load(f) or {}
+
+    params = raw.get('parameters', {})
+
+    # Normalise arguments (supports both 'arguments' and legacy 'pvs')
+    args_section = raw.get('arguments', raw.get('pvs', {}))
+    inputs = args_section.get('inputs', {}) if isinstance(args_section, dict) else {}
+    outputs = args_section.get('outputs', {}) if isinstance(args_section, dict) else {}
+
+    return {
+        'parameters': params,
+        'inputs': inputs,
+        'outputs': outputs,
+        'rules': raw.get('rules', []),
+        'transforms': raw.get('transforms', []),
+        'rule_defaults': raw.get('rule_defaults', {}),
+    }
+
+
+def _load_softioc_values(softioc_config_path):
+    """Load values-softioc.yaml and resolve task configs.
+
+    Expected format::
+
+        prefix: "SPARC:CONTROL"
+        tasks:
+          - name: softinterlock
+            config: /path/to/softinterlock/config.yaml
+            label: Soft Interlock          # optional
+            zones: [LINAC]                 # optional
+
+    Or with a ``config_dir`` to auto-discover::
+
+        prefix: "SPARC:CONTROL"
+        config_dir: /path/to/task/directories
+    """
+    with open(softioc_config_path, 'r') as f:
+        sconf = yaml.safe_load(f) or {}
+
+    prefix = sconf.get('prefix', '')
+    tasks = []
+
+    # Explicit task list
+    for entry in sconf.get('tasks', []):
+        name = entry.get('name', '')
+        config_path = entry.get('config')
+        if not config_path:
+            continue
+        # Resolve relative paths against the softioc values file location
+        if not os.path.isabs(config_path):
+            base = os.path.dirname(os.path.abspath(softioc_config_path))
+            config_path = os.path.join(base, config_path)
+        if not os.path.exists(config_path):
+            print(f"  WARNING: softioc config not found: {config_path}")
+            continue
+        task_conf = _load_softioc_config(config_path)
+        tasks.append({
+            'name': name,
+            'label': entry.get('label', name.replace('-', ' ').replace('_', ' ').title()),
+            'zones': entry.get('zones', []),
+            'prefix': entry.get('prefix', prefix),
+            'config': task_conf,
+            'config_path': config_path,
+        })
+
+    # Auto-discover from config_dir
+    config_dir = sconf.get('config_dir')
+    if config_dir:
+        if not os.path.isabs(config_dir):
+            base = os.path.dirname(os.path.abspath(softioc_config_path))
+            config_dir = os.path.join(base, config_dir)
+        if os.path.isdir(config_dir):
+            existing_names = {t['name'] for t in tasks}
+            for entry_name in sorted(os.listdir(config_dir)):
+                if entry_name in existing_names:
+                    continue
+                candidate = os.path.join(config_dir, entry_name, 'config.yaml')
+                if os.path.exists(candidate):
+                    task_conf = _load_softioc_config(candidate)
+                    tasks.append({
+                        'name': entry_name,
+                        'label': entry_name.replace('-', ' ').replace('_', ' ').title(),
+                        'zones': [],
+                        'prefix': prefix,
+                        'config': task_conf,
+                        'config_path': candidate,
+                    })
+
+    return {'prefix': prefix, 'tasks': tasks}
+
+
+def _sioc_section_label(grp, uid, text, y, width):
+    """Add a section heading bar inside a softioc detail panel."""
+    bg = widget.Rectangle(f"sbg-{uid}", 0, y, width, SIOC_SECTION_H)
+    bg.background_color(220, 225, 235)
+    grp.add_widget(bg)
+    lbl = widget.Label(f"slbl-{uid}", f"  {text}", 0, y + 4, width, 22)
+    lbl.font_size(13)
+    lbl.font_style_bold()
+    lbl.foreground_color(30, 60, 110)
+    grp.add_widget(lbl)
+    return y + SIOC_SECTION_H + SIOC_GAP
+
+
+def _sioc_pv_row(grp, uid, pv_name, label_text, pv_type, spec, x, y, writable=False):
+    """Add one PV row: label + value widget + optional unit/link info."""
+    lbl = widget.Label(f"l-{uid}", label_text, x, y, SIOC_LABEL_W, SIOC_ROW_H)
+    lbl.font_size(11)
+    grp.add_widget(lbl)
+
+    vx = x + SIOC_LABEL_W + 4
+    if pv_type == 'bool' and writable:
+        val = widget.BooleanButton(f"v-{uid}", pv_name, vx, y, 80, SIOC_ROW_H)
+        on_label = spec.get('onam', 'On')
+        off_label = spec.get('znam', 'Off')
+        val.on_label(on_label)
+        val.off_label(off_label)
+    elif writable:
+        val = widget.TextEntry(f"v-{uid}", pv_name, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
+        val.font_size(11)
+    else:
+        val = widget.TextUpdate(f"v-{uid}", pv_name, vx, y, SIOC_VALUE_W, SIOC_ROW_H)
+        val.font_size(11)
+    grp.add_widget(val)
+
+    info_x = vx + SIOC_VALUE_W + 8
+    unit = spec.get('unit', '')
+    link = spec.get('link', '')
+    info_parts = []
+    if unit:
+        info_parts.append(unit)
+    if link:
+        info_parts.append(f"← {link}")
+    if info_parts:
+        info = widget.Label(f"i-{uid}", '  '.join(info_parts),
+                            info_x, y, SIOC_LINK_W + SIOC_UNIT_W, SIOC_ROW_H)
+        info.font_size(10)
+        info.foreground_color(120, 120, 120)
+        grp.add_widget(info)
+
+    return y + SIOC_ROW_H + SIOC_GAP
+
+
+def _build_softioc_detail(task_entry, project_dir):
+    """Generate a detail .bob file for one softioc-mng task.
+
+    Returns the filename of the generated .bob.
+    """
+    name = task_entry['name']
+    label = task_entry['label']
+    prefix = task_entry['prefix']
+    conf = task_entry['config']
+    inputs = conf['inputs']
+    outputs = conf['outputs']
+    params = conf['parameters']
+    rules = conf['rules']
+    transforms = conf['transforms']
+
+    task_pv = f"{prefix}:{name.upper().replace('-', '_')}"
+
+    # Calculate needed height
+    n_builtin = 4  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN
+    n_inputs = len(inputs)
+    n_outputs = len(outputs)
+    n_rules = len(rules)
+    n_transforms = len(transforms)
+    n_params = len(params)
+    total_rows = n_builtin + n_inputs + n_outputs + n_rules + n_transforms + n_params
+    total_sections = 2  # Control + Inputs always
+    if outputs:
+        total_sections += 1
+    if rules:
+        total_sections += 1
+    if transforms:
+        total_sections += 1
+    if params:
+        total_sections += 1
+
+    height = 80 + total_rows * (SIOC_ROW_H + SIOC_GAP) + total_sections * (SIOC_SECTION_H + 12) + 40
+    bob_name = f"softioc_{name}.bob"
+    bob_path = os.path.join(project_dir, bob_name)
+
+    scr = screen.Screen(f"{label} — Detail", bob_path)
+    scr.width(SIOC_DETAIL_W)
+    scr.height(height)
+
+    # Title
+    title = widget.Label("title", f"{label}", 10, 10, SIOC_DETAIL_W - 20, 30)
+    title.font_size(18)
+    title.font_style_bold()
+    title.foreground_color(30, 60, 110)
+    scr.add_widget(title)
+
+    # Subtitle: mode + interval
+    mode = params.get('mode', 'continuous')
+    interval = params.get('interval', '?')
+    sub = widget.Label("subtitle",
+                        f"mode: {mode}  |  interval: {interval}s  |  prefix: {task_pv}",
+                        10, 40, SIOC_DETAIL_W - 20, 20)
+    sub.font_size(11)
+    sub.foreground_color(100, 100, 100)
+    scr.add_widget(sub)
+
+    y = 70
+
+    # ── Control & Status section ──
+    y = _sioc_section_label(scr, "ctrl", "Control & Status", y, SIOC_DETAIL_W)
+
+    # ENABLE
+    en_lbl = widget.Label("en-l", "Enable", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    en_lbl.font_size(11)
+    scr.add_widget(en_lbl)
+    en_btn = widget.BooleanButton("en-v", f"{task_pv}:ENABLE",
+                                   SIOC_LEFT + SIOC_LABEL_W + 4, y, 80, SIOC_ROW_H)
+    en_btn.on_label("Enabled")
+    en_btn.off_label("Disabled")
+    en_btn.on_color(60, 180, 75)
+    en_btn.off_color(200, 60, 60)
+    scr.add_widget(en_btn)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # STATUS
+    st_lbl = widget.Label("st-l", "Status", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    st_lbl.font_size(11)
+    scr.add_widget(st_lbl)
+    st_val = widget.TextUpdate("st-v", f"{task_pv}:STATUS",
+                                SIOC_LEFT + SIOC_LABEL_W + 4, y, SIOC_VALUE_W, SIOC_ROW_H)
+    st_val.font_size(11)
+    scr.add_widget(st_val)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # MESSAGE
+    msg_lbl = widget.Label("msg-l", "Message", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    msg_lbl.font_size(11)
+    scr.add_widget(msg_lbl)
+    msg_val = widget.TextUpdate("msg-v", f"{task_pv}:MESSAGE",
+                                 SIOC_LEFT + SIOC_LABEL_W + 4, y, 450, SIOC_ROW_H)
+    msg_val.font_size(11)
+    scr.add_widget(msg_val)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # CYCLE_COUNT or RUN
+    is_triggered = (mode == 'triggered')
+    if is_triggered:
+        cc_lbl = widget.Label("cc-l", "Trigger", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+        cc_lbl.font_size(11)
+        scr.add_widget(cc_lbl)
+        cc_btn = widget.BooleanButton("cc-v", f"{task_pv}:RUN",
+                                       SIOC_LEFT + SIOC_LABEL_W + 4, y, 80, SIOC_ROW_H)
+        cc_btn.on_label("Run")
+        cc_btn.off_label("Idle")
+        cc_btn.mode_push()
+        scr.add_widget(cc_btn)
+    else:
+        cc_lbl = widget.Label("cc-l", "Cycle Count", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+        cc_lbl.font_size(11)
+        scr.add_widget(cc_lbl)
+        cc_val = widget.TextUpdate("cc-v", f"{task_pv}:CYCLE_COUNT",
+                                    SIOC_LEFT + SIOC_LABEL_W + 4, y, 120, SIOC_ROW_H)
+        cc_val.font_size(11)
+        scr.add_widget(cc_val)
+    y += SIOC_ROW_H + SIOC_GAP + 8
+
+    # ── Parameters section ──
+    if params:
+        y = _sioc_section_label(scr, "params", f"Parameters ({len(params)})", y, SIOC_DETAIL_W)
+        for idx, (pk, pv_val) in enumerate(params.items()):
+            uid = f"p-{idx}"
+            p_lbl = widget.Label(f"l-{uid}", pk, SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+            p_lbl.font_size(11)
+            scr.add_widget(p_lbl)
+            p_val = widget.Label(f"v-{uid}", str(pv_val),
+                                  SIOC_LEFT + SIOC_LABEL_W + 4, y, SIOC_VALUE_W, SIOC_ROW_H)
+            p_val.font_size(11)
+            p_val.foreground_color(60, 60, 60)
+            scr.add_widget(p_val)
+            y += SIOC_ROW_H + SIOC_GAP
+        y += 8
+
+    # ── Inputs section ──
+    if inputs:
+        y = _sioc_section_label(scr, "inputs", f"Inputs ({len(inputs)})", y, SIOC_DETAIL_W)
+        for idx, (pv_key, spec) in enumerate(inputs.items()):
+            pv_type = spec.get('type', 'float')
+            pv_name = f"{task_pv}:{pv_key}"
+            link = spec.get('link', '')
+            unit = spec.get('unit', '')
+            label_text = pv_key
+            if unit:
+                label_text += f" ({unit})"
+            # Inputs without links are writable by operators
+            writable = not bool(link)
+            y = _sioc_pv_row(scr, f"in-{idx}", pv_name, label_text,
+                              pv_type, spec, SIOC_LEFT, y, writable=writable)
+        y += 8
+
+    # ── Outputs section ──
+    if outputs:
+        y = _sioc_section_label(scr, "outputs", f"Outputs ({len(outputs)})", y, SIOC_DETAIL_W)
+        for idx, (pv_key, spec) in enumerate(outputs.items()):
+            pv_type = spec.get('type', 'float')
+            pv_name = f"{task_pv}:{pv_key}"
+            unit = spec.get('unit', '')
+            label_text = pv_key
+            if unit:
+                label_text += f" ({unit})"
+            y = _sioc_pv_row(scr, f"out-{idx}", pv_name, label_text,
+                              pv_type, spec, SIOC_LEFT, y, writable=False)
+        y += 8
+
+    # ── Transforms section ──
+    if transforms:
+        y = _sioc_section_label(scr, "transforms", f"Transforms ({len(transforms)})", y, SIOC_DETAIL_W)
+        for idx, tr in enumerate(transforms):
+            uid = f"tr-{idx}"
+            out_name = tr.get('output', '?')
+            expr = tr.get('expression', '?')
+            tr_lbl = widget.Label(f"l-{uid}", f"{out_name} =", SIOC_LEFT, y, 120, SIOC_ROW_H)
+            tr_lbl.font_size(11)
+            tr_lbl.font_style_bold()
+            scr.add_widget(tr_lbl)
+            tr_expr = widget.Label(f"v-{uid}", expr,
+                                    SIOC_LEFT + 124, y, SIOC_DETAIL_W - 140, SIOC_ROW_H)
+            tr_expr.font_size(11)
+            tr_expr.foreground_color(80, 80, 80)
+            scr.add_widget(tr_expr)
+            y += SIOC_ROW_H + SIOC_GAP
+        y += 8
+
+    # ── Rules section ──
+    if rules:
+        y = _sioc_section_label(scr, "rules", f"Rules ({len(rules)})", y, SIOC_DETAIL_W)
+        for idx, rule in enumerate(rules):
+            uid = f"rl-{idx}"
+            rule_id = rule.get('id', f'rule_{idx}')
+            condition = rule.get('condition', '')
+            message = rule.get('message', '')
+            # Rule ID + condition
+            rid_lbl = widget.Label(f"l-{uid}", rule_id, SIOC_LEFT, y, 160, SIOC_ROW_H)
+            rid_lbl.font_size(11)
+            rid_lbl.font_style_bold()
+            rid_lbl.foreground_color(180, 60, 30)
+            scr.add_widget(rid_lbl)
+            cond_lbl = widget.Label(f"c-{uid}", condition,
+                                     SIOC_LEFT + 164, y, SIOC_DETAIL_W - 180, SIOC_ROW_H)
+            cond_lbl.font_size(10)
+            cond_lbl.foreground_color(80, 80, 80)
+            scr.add_widget(cond_lbl)
+            y += SIOC_ROW_H + 2
+            # Message
+            if message:
+                msg = widget.Label(f"m-{uid}", f"  → {message}",
+                                    SIOC_LEFT + 20, y, SIOC_DETAIL_W - 40, SIOC_ROW_H - 4)
+                msg.font_size(10)
+                msg.foreground_color(100, 100, 100)
+                scr.add_widget(msg)
+                y += SIOC_ROW_H - 2
+            # Actuators
+            actuators = rule.get('actuators', {})
+            if actuators:
+                act_text = ', '.join(f"{k}→{v}" for k, v in actuators.items())
+                act_lbl = widget.Label(f"a-{uid}", f"  actuators: {act_text}",
+                                        SIOC_LEFT + 20, y, SIOC_DETAIL_W - 40, SIOC_ROW_H - 4)
+                act_lbl.font_size(10)
+                act_lbl.foreground_color(200, 80, 30)
+                scr.add_widget(act_lbl)
+                y += SIOC_ROW_H - 2
+            # Outputs
+            rule_outputs = rule.get('outputs', {})
+            if rule_outputs:
+                out_text = ', '.join(f"{k}={v}" for k, v in rule_outputs.items())
+                out_lbl = widget.Label(f"o-{uid}", f"  outputs: {out_text}",
+                                        SIOC_LEFT + 20, y, SIOC_DETAIL_W - 40, SIOC_ROW_H - 4)
+                out_lbl.font_size(10)
+                out_lbl.foreground_color(30, 100, 160)
+                scr.add_widget(out_lbl)
+                y += SIOC_ROW_H - 2
+            y += SIOC_GAP
+
+    # Adjust final height
+    scr.height(y + 20)
+    scr.write_screen()
+    print(f"  + Generated {bob_name}: {len(inputs)} inputs, "
+          f"{len(outputs)} outputs, {len(rules)} rules, {len(transforms)} transforms")
+    return bob_name
+
+
+def _build_softioc_summary_row(uid, task_entry, bob_name, x, y, row_w):
+    """Build a dashboard summary row for one softioc task."""
+    name = task_entry['name']
+    label = task_entry['label']
+    prefix = task_entry['prefix']
+    task_pv = f"{prefix}:{name.upper().replace('-', '_')}"
+    conf = task_entry['config']
+    mode = conf['parameters'].get('mode', 'continuous')
+
+    row_h = DASH_MIN_ROW_H + 4
+    grp = widget.Group(f"row-{uid}", x, y, row_w, row_h)
+    grp.no_style()
+    _add_row_background(grp, uid, row_w, row_h)
+
+    cx = 8
+    # Task label
+    lbl = widget.Label(f"lbl-{uid}", label, cx, 8, 180, 28)
+    lbl.font_size(13)
+    lbl.font_style_bold()
+    lbl.foreground_color(30, 60, 110)
+    grp.add_widget(lbl)
+    cx += 184
+
+    # Enable button
+    en = widget.BooleanButton(f"en-{uid}", f"{task_pv}:ENABLE", cx, 10, 70, 24)
+    en.on_label("ON")
+    en.off_label("OFF")
+    en.on_color(60, 180, 75)
+    en.off_color(200, 60, 60)
+    grp.add_widget(en)
+    cx += 78
+
+    # Status
+    st = widget.TextUpdate(f"st-{uid}", f"{task_pv}:STATUS", cx, 10, 80, 24)
+    st.font_size(11)
+    grp.add_widget(st)
+    cx += 88
+
+    # Cycle count
+    if mode != 'triggered':
+        cc = widget.TextUpdate(f"cc-{uid}", f"{task_pv}:CYCLE_COUNT", cx, 10, 60, 24)
+        cc.font_size(10)
+        grp.add_widget(cc)
+    else:
+        run = widget.BooleanButton(f"run-{uid}", f"{task_pv}:RUN", cx, 10, 60, 24)
+        run.on_label("Run")
+        run.off_label("Idle")
+        run.mode_push()
+        grp.add_widget(run)
+    cx += 68
+
+    # Message
+    msg = widget.TextUpdate(f"msg-{uid}", f"{task_pv}:MESSAGE", cx, 10, 280, 24)
+    msg.font_size(10)
+    grp.add_widget(msg)
+    cx += 288
+
+    # "Open" button → detail panel
+    btn = widget.ActionButton(f"btn-{uid}", "Detail ⬈", "",
+                               cx, 8, 90, 28)
+    btn.action_open_display(bob_name, 'window', f"Open {label}", {})
+    btn.background_color(60, 120, 200)
+    btn.foreground_color(255, 255, 255)
+    grp.add_widget(btn)
+
+    return grp
+
+
+def _build_softioc_dashboard_section(softioc_data, project_dir, x, y, width):
+    """Build the complete Soft IOCs dashboard section.
+
+    Generates detail .bob files and returns (section_group, total_height).
+    """
+    tasks = softioc_data['tasks']
+    if not tasks:
+        return None, 0
+
+    # Generate detail panels
+    bob_names = {}
+    for t in tasks:
+        bob_names[t['name']] = _build_softioc_detail(t, project_dir)
+
+    # Section header
+    sec_h = DASH_SECTION_HEADER_H
+    hdr = _build_section_header("Soft IOCs", "softioc", len(tasks), x, 0, width)
+
+    row_h = DASH_MIN_ROW_H + 4
+    total_h = sec_h + DASH_ROW_GAP + len(tasks) * (row_h + DASH_ROW_GAP) + DASH_SECTION_GAP
+
+    grp = widget.Group("softioc-section", x, y, width, total_h)
+    grp.no_style()
+    grp.add_widget(hdr)
+
+    ry = sec_h + DASH_ROW_GAP
+    for idx, t in enumerate(tasks):
+        uid = f"sioc-{t['name']}-{idx}"
+        row = _build_softioc_summary_row(uid, t, bob_names[t['name']],
+                                          0, ry, width)
+        grp.add_widget(row)
+        ry += row_h + DASH_ROW_GAP
+
+    return grp, total_h
+
+
+# ---------------------------------------------------------------------------
 # Setup helpers
 # ---------------------------------------------------------------------------
 
@@ -1200,14 +1714,22 @@ def main_opigen():
                         help="Output filename for the detailed launcher")
     parser.add_argument("--generate-settings-ini", action="store_true",
                         help="Generate settings.ini in the OPI project directory")
+    parser.add_argument("--softioc-config", type=str, default=None,
+                        help="Path to values-softioc.yaml for softioc-mng OPI generation")
+    parser.add_argument("--softioc-only", action="store_true",
+                        help="Generate only softioc OPIs (skip beamline launcher)")
 
     args = parser.parse_args()
     if args.version:
         print(f"epik8s-tools version {__version__}")
         return
 
-    if not args.config:
+    if not args.config and not args.softioc_only:
         print("# must define a valid epik8s configuration yaml --yaml <configuration>")
+        return -1
+
+    if args.softioc_only and not args.softioc_config:
+        print("# --softioc-only requires --softioc-config <path>")
         return -1
 
     if not args.projectdir:
@@ -1221,6 +1743,60 @@ def main_opigen():
 
     project_dir = os.path.abspath(args.projectdir)
     os.makedirs(project_dir, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Load softioc-mng configuration (optional)
+    # ------------------------------------------------------------------
+    softioc_data = None
+    if args.softioc_config:
+        if not os.path.exists(args.softioc_config):
+            print(f"## softioc config not found: {args.softioc_config}")
+            return -3
+        print(f"\n--- Soft IOC OPI generation ---")
+        softioc_data = _load_softioc_values(args.softioc_config)
+        print(f"Loaded {len(softioc_data['tasks'])} softioc tasks "
+              f"(prefix: {softioc_data['prefix']})")
+
+    # ------------------------------------------------------------------
+    # Softioc-only mode: generate standalone launcher
+    # ------------------------------------------------------------------
+    if args.softioc_only:
+        if not softioc_data or not softioc_data['tasks']:
+            print("## No softioc tasks found")
+            return -4
+
+        sioc_prefix = softioc_data['prefix']
+        sioc_title = args.title or f"Soft IOC Manager — {sioc_prefix}"
+        sioc_screen = screen.Screen(sioc_title, os.path.join(project_dir, args.output))
+        sioc_screen.width(args.width)
+        sioc_screen.height(args.height)
+
+        # Header
+        hdr_grp = widget.Group("header", 0, 0, args.width, DASH_HEADER_H)
+        hdr_grp.no_style()
+        hdr_bg = widget.Rectangle("hdr-bg", 0, 0, args.width, DASH_HEADER_H)
+        hdr_bg.background_color(30, 60, 110)
+        hdr_grp.add_widget(hdr_bg)
+        hdr_title = widget.Label("hdr-title",
+                                  f"Soft IOC Manager — {sioc_prefix}  |  "
+                                  f"{len(softioc_data['tasks'])} tasks",
+                                  DASH_LEFT_PAD, 8, args.width - 100, 28)
+        hdr_title.font_size(20)
+        hdr_title.font_style_bold()
+        hdr_title.foreground_color(255, 255, 255)
+        hdr_grp.add_widget(hdr_title)
+        sioc_screen.add_widget(hdr_grp)
+
+        # Body: softioc section
+        section_w = args.width - 2 * DASH_LEFT_PAD
+        sioc_section, sioc_h = _build_softioc_dashboard_section(
+            softioc_data, project_dir, DASH_LEFT_PAD, DASH_HEADER_H + 10, section_w)
+        if sioc_section:
+            sioc_screen.add_widget(sioc_section)
+
+        sioc_screen.write_screen()
+        print(f"\nGenerated {os.path.join(project_dir, args.output)} — '{sioc_title}'")
+        return
 
     # ------------------------------------------------------------------
     # Load & prepare YAML configuration
@@ -1277,6 +1853,20 @@ def main_opigen():
     body = _build_dashboard_body(conf, iocs, devgroups, epik8s_opi_path,
                                   args.width, body_h)
     launcher_screen.add_widget(body)
+
+    # ------------------------------------------------------------------
+    # Add Soft IOC section to the dashboard (optional)
+    # ------------------------------------------------------------------
+    if softioc_data and softioc_data['tasks']:
+        section_w = args.width - 2 * DASH_LEFT_PAD
+        sioc_section, sioc_h = _build_softioc_dashboard_section(
+            softioc_data, project_dir, DASH_LEFT_PAD,
+            args.height - 20, section_w)
+        if sioc_section:
+            launcher_screen.add_widget(sioc_section)
+            # Extend height to accommodate the new section
+            launcher_screen.height(args.height + sioc_h)
+            print(f"\n+ Soft IOCs: {len(softioc_data['tasks'])} tasks")
 
     # Print summary
     for devgroup in _ordered_devgroups(devgroups):

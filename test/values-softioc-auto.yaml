@@ -1,0 +1,5 @@
+# values-softioc-auto.yaml — Auto-discover mode
+prefix: "SPARC:CONTROL"
+
+# Auto-discover all task dirs under config/iocs/
+config_dir: ../../epik8-sparc/config/iocs/

@@ -1,0 +1,23 @@
+# values-softioc.yaml — Softioc Manager OPI configuration
+#
+# This file describes the softioc-mng tasks for OPI generation.
+# Used by: epik8s-opigen --softioc-config values-softioc.yaml
+#
+# Each task points to a config.yaml from the softioc-mng plugin format.
+
+prefix: "SPARC:CONTROL"
+
+# Explicit task list
+tasks:
+  - name: softinterlock
+    config: ../../epik8-sparc/config/iocs/softinterlock/config.yaml
+    label: "Soft Interlock"
+    zones: [LINAC, GUN]
+
+  - name: check_motor_movement
+    config: ../../epik8-sparc/config/iocs/check_motor_movement/config.yaml
+    label: "Motor Movement Check"
+    zones: [ALL]
+
+# Alternatively, auto-discover all task dirs under a directory:
+# config_dir: ../../epik8-sparc/config/iocs/
