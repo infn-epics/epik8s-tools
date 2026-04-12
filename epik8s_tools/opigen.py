@@ -1763,7 +1763,9 @@ def main_opigen():
     parser.add_argument("--generate-settings-ini", action="store_true",
                         help="Generate settings.ini in the OPI project directory")
     parser.add_argument("--softioc-config", type=str, default=None,
-                        help="Path to values-softioc.yaml OR a single task config.yaml")
+                        action="append", dest="softioc_config",
+                        help="Path to values-softioc.yaml or a single task config.yaml. "
+                             "May be repeated to merge tasks from multiple configs.")
     parser.add_argument("--softioc-only", action="store_true",
                         help="Generate only softioc OPIs (skip beamline launcher)")
     parser.add_argument("--prefix", type=str, default=None,
@@ -1799,11 +1801,18 @@ def main_opigen():
     # ------------------------------------------------------------------
     softioc_data = None
     if args.softioc_config:
-        if not os.path.exists(args.softioc_config):
-            print(f"## softioc config not found: {args.softioc_config}")
-            return -3
         print(f"\n--- Soft IOC OPI generation ---")
-        softioc_data = _load_softioc_values(args.softioc_config, override_prefix=args.prefix)
+        merged_tasks = []
+        merged_prefix = args.prefix or ''
+        for sc_path in args.softioc_config:
+            if not os.path.exists(sc_path):
+                print(f"## softioc config not found: {sc_path}")
+                return -3
+            sc_data = _load_softioc_values(sc_path, override_prefix=args.prefix)
+            if not merged_prefix:
+                merged_prefix = sc_data['prefix']
+            merged_tasks.extend(sc_data['tasks'])
+        softioc_data = {'prefix': merged_prefix, 'tasks': merged_tasks}
         print(f"Loaded {len(softioc_data['tasks'])} softioc tasks "
               f"(prefix: {softioc_data['prefix']})")
 
