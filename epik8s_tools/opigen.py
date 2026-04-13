@@ -1328,7 +1328,7 @@ def _build_softioc_detail(task_entry, project_dir):
         else name.upper().replace('-', '_')
     )
     task_pv = f"pva://{task_pv}"
-    n_builtin = 6  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN, CLEAR, RESET
+    n_builtin = 7  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN, VERSION, CLEAR, RESET
     n_inputs = len(inputs)
     n_outputs = len(outputs)
     n_rules = len(rules)
@@ -1428,6 +1428,16 @@ def _build_softioc_detail(task_entry, project_dir):
                                     SIOC_LEFT + SIOC_LABEL_W + 4, y, 120, SIOC_ROW_H)
         cc_val.font_size(11)
         scr.add_widget(cc_val)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # VERSION
+    ver_lbl = widget.Label("ver-l", "Version", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    ver_lbl.font_size(11)
+    scr.add_widget(ver_lbl)
+    ver_val = widget.TextUpdate("ver-v", f"{task_pv}:VERSION",
+                                 SIOC_LEFT + SIOC_LABEL_W + 4, y, 180, SIOC_ROW_H)
+    ver_val.font_size(11)
+    scr.add_widget(ver_val)
     y += SIOC_ROW_H + SIOC_GAP
 
     # CLEAR — release all latched outputs
