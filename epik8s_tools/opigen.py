@@ -1328,7 +1328,7 @@ def _build_softioc_detail(task_entry, project_dir):
         else name.upper().replace('-', '_')
     )
     task_pv = f"pva://{task_pv}"
-    n_builtin = 4  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN
+    n_builtin = 6  # ENABLE, STATUS, MESSAGE, CYCLE_COUNT/RUN, CLEAR, RESET
     n_inputs = len(inputs)
     n_outputs = len(outputs)
     n_rules = len(rules)
@@ -1428,6 +1428,34 @@ def _build_softioc_detail(task_entry, project_dir):
                                     SIOC_LEFT + SIOC_LABEL_W + 4, y, 120, SIOC_ROW_H)
         cc_val.font_size(11)
         scr.add_widget(cc_val)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # CLEAR — release all latched outputs
+    cl_lbl = widget.Label("cl-l", "Clear Latches", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    cl_lbl.font_size(11)
+    scr.add_widget(cl_lbl)
+    cl_btn = widget.BooleanButton("cl-v", f"{task_pv}:CLEAR",
+                                   SIOC_LEFT + SIOC_LABEL_W + 4, y, 80, SIOC_ROW_H)
+    cl_btn.on_label("CLEAR")
+    cl_btn.off_label("CLEAR")
+    cl_btn.on_color(220, 130, 0)
+    cl_btn.off_color(220, 130, 0)
+    cl_btn.mode_push()
+    scr.add_widget(cl_btn)
+    y += SIOC_ROW_H + SIOC_GAP
+
+    # RESET — clear latches + reset cycle counter + re-init connectivity
+    rs_lbl = widget.Label("rs-l", "Reset", SIOC_LEFT, y, SIOC_LABEL_W, SIOC_ROW_H)
+    rs_lbl.font_size(11)
+    scr.add_widget(rs_lbl)
+    rs_btn = widget.BooleanButton("rs-v", f"{task_pv}:RESET",
+                                   SIOC_LEFT + SIOC_LABEL_W + 4, y, 80, SIOC_ROW_H)
+    rs_btn.on_label("RESET")
+    rs_btn.off_label("RESET")
+    rs_btn.on_color(180, 30, 30)
+    rs_btn.off_color(180, 30, 30)
+    rs_btn.mode_push()
+    scr.add_widget(rs_btn)
     y += SIOC_ROW_H + SIOC_GAP + 8
 
     # ── Parameters section ──
@@ -1473,6 +1501,8 @@ def _build_softioc_detail(task_entry, project_dir):
             label_text = pv_key
             if unit:
                 label_text += f" ({unit})"
+            if spec.get('latch'):
+                label_text += "  [LATCH]"
             y = _sioc_pv_row(scr, f"out-{idx}", pv_name, label_text,
                               pv_type, spec, SIOC_LEFT, y, writable=False)
         y += 8
