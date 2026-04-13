@@ -1546,6 +1546,82 @@ def _build_softioc_detail(task_entry, project_dir):
                 y += SIOC_ROW_H - 2
             y += SIOC_GAP
 
+    # ── Link Connectivity section ──────────────────────────────────────────────
+    # Shows the framework-generated CONN_INP / CONN_OUT system PVs which track
+    # live CA/PVA connection state for every wired input and output port.
+    wired_inputs = [(n, s) for n, s in inputs.items() if s.get('link')]
+    wired_outputs = [(n, s) for n, s in outputs.items() if s.get('link')]
+
+    if wired_inputs or wired_outputs:
+        n_wi = len(wired_inputs)
+        n_wo = len(wired_outputs)
+        y = _sioc_section_label(scr, "conn",
+                                f"Link Connectivity  ({n_wi} inputs / {n_wo} outputs)",
+                                y, SIOC_DETAIL_W)
+
+        if wired_inputs:
+            # Aggregate waveform row
+            ci_lbl = widget.Label("conn-ci-l", "CONN_INP  [1=connected, 0=disconnected]",
+                                   SIOC_LEFT, y, SIOC_LABEL_W + 80, SIOC_ROW_H)
+            ci_lbl.font_size(11)
+            ci_lbl.font_style_bold()
+            scr.add_widget(ci_lbl)
+            ci_val = widget.TextUpdate("conn-ci-v", f"{task_pv}:CONN_INP",
+                                        SIOC_LEFT + SIOC_LABEL_W + 84, y, 250, SIOC_ROW_H)
+            ci_val.font_size(10)
+            scr.add_widget(ci_val)
+            y += SIOC_ROW_H + SIOC_GAP
+
+            # Per-port annotation rows (static labels + linked PV)
+            for idx, (port_name, spec) in enumerate(wired_inputs):
+                link_pv = spec.get('link', '')
+                pl = widget.Label(f"conn-ci-pl-{idx}",
+                                   f"  [{idx}]  {port_name}",
+                                   SIOC_LEFT + 16, y, SIOC_LABEL_W + 60, SIOC_ROW_H)
+                pl.font_size(10)
+                pl.foreground_color(60, 60, 60)
+                scr.add_widget(pl)
+                if link_pv:
+                    ll = widget.Label(f"conn-ci-ll-{idx}", f"← {link_pv}",
+                                       SIOC_LEFT + SIOC_LABEL_W + 80, y,
+                                       SIOC_LINK_W + SIOC_UNIT_W, SIOC_ROW_H)
+                    ll.font_size(9)
+                    ll.foreground_color(130, 130, 130)
+                    scr.add_widget(ll)
+                y += SIOC_ROW_H + 1
+            y += SIOC_GAP + 4
+
+        if wired_outputs:
+            # Aggregate waveform row
+            co_lbl = widget.Label("conn-co-l", "CONN_OUT  [1=connected, 0=disconnected]",
+                                   SIOC_LEFT, y, SIOC_LABEL_W + 80, SIOC_ROW_H)
+            co_lbl.font_size(11)
+            co_lbl.font_style_bold()
+            scr.add_widget(co_lbl)
+            co_val = widget.TextUpdate("conn-co-v", f"{task_pv}:CONN_OUT",
+                                        SIOC_LEFT + SIOC_LABEL_W + 84, y, 250, SIOC_ROW_H)
+            co_val.font_size(10)
+            scr.add_widget(co_val)
+            y += SIOC_ROW_H + SIOC_GAP
+
+            for idx, (port_name, spec) in enumerate(wired_outputs):
+                link_pv = spec.get('link', '')
+                pl = widget.Label(f"conn-co-pl-{idx}",
+                                   f"  [{idx}]  {port_name}",
+                                   SIOC_LEFT + 16, y, SIOC_LABEL_W + 60, SIOC_ROW_H)
+                pl.font_size(10)
+                pl.foreground_color(60, 60, 60)
+                scr.add_widget(pl)
+                if link_pv:
+                    ll = widget.Label(f"conn-co-ll-{idx}", f"← {link_pv}",
+                                       SIOC_LEFT + SIOC_LABEL_W + 80, y,
+                                       SIOC_LINK_W + SIOC_UNIT_W, SIOC_ROW_H)
+                    ll.font_size(9)
+                    ll.foreground_color(130, 130, 130)
+                    scr.add_widget(ll)
+                y += SIOC_ROW_H + 1
+            y += SIOC_GAP + 4
+
     # Adjust final height
     scr.height(y + 20)
     scr.write_screen()
