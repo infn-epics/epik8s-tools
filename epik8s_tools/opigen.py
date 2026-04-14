@@ -1450,7 +1450,7 @@ def _build_softioc_detail(task_entry, project_dir):
     cl_btn.off_label("CLEAR")
     cl_btn.on_color(220, 130, 0)
     cl_btn.off_color(220, 130, 0)
-    cl_btn.mode_push()
+    cl_btn.mode_toggle()
     scr.add_widget(cl_btn)
     y += SIOC_ROW_H + SIOC_GAP
 
@@ -1464,7 +1464,7 @@ def _build_softioc_detail(task_entry, project_dir):
     rs_btn.off_label("RESET")
     rs_btn.on_color(180, 30, 30)
     rs_btn.off_color(180, 30, 30)
-    rs_btn.mode_push()
+    rs_btn.mode_toggle()
     scr.add_widget(rs_btn)
     y += SIOC_ROW_H + SIOC_GAP + 8
 
